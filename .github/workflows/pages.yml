@@ -39,7 +39,7 @@ jobs:
           cp catalog.json _site/catalog.json
           node scripts/render-site-config.mjs _site/config.js
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
