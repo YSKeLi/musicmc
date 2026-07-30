@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: github-upload-service/worker/package-lock.json
+
+      - name: Verify repository contents
+        run: python3 scripts/check-repository.py
+
+      - name: Test and package Spigot plugin
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode clean verify
+
+      - name: Test upload portal
+        run: node --test github-upload-service/tests/catalog.test.mjs github-upload-service/tests/portal.test.mjs
+
+      - name: Test processing scripts
+        run: python3 -m unittest discover -s github-upload-service/tests -v
+
+      - name: Test Cloudflare Worker
+        working-directory: github-upload-service/worker
+        run: |
+          npm ci
+          npm test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicMC-plugin
+          path: target/MusicMC-*.jar
+          if-no-files-found: error

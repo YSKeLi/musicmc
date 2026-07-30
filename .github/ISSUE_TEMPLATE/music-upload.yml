@@ -1,0 +1,47 @@
+name: Upload a song / 上传歌曲
+description: Submit one server-authorized song to MusicMC
+title: "[Music Upload] "
+labels:
+  - music-pending
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先在 Minecraft 服务器执行 `/music upload <歌曲名称>`。
+        上传凭证必须有效，ZIP 不得超过 25 MB，且只能包含一个音乐文件。
+
+  - type: input
+    id: upload-ticket
+    attributes:
+      label: 上传凭证
+      description: 粘贴服务器生成的完整 MUS1 凭证。
+      placeholder: MUS1.payload.signature
+    validations:
+      required: true
+
+  - type: input
+    id: song-name
+    attributes:
+      label: 歌曲名称
+      description: 必须与 Minecraft 命令中的名称完全一致。
+      placeholder: abc
+    validations:
+      required: true
+
+  - type: input
+    id: minecraft-name
+    attributes:
+      label: Minecraft 玩家名
+      description: 必须与上传凭证中的玩家一致。
+      placeholder: PlayerName
+    validations:
+      required: true
+
+  - type: textarea
+    id: music-archive
+    attributes:
+      label: 音乐 ZIP 文件
+      description: 将光标放在下方输入区域，再拖入与歌曲同名的 ZIP，等待附件链接出现。
+      placeholder: 将 ZIP 文件拖到这里
+    validations:
+      required: true

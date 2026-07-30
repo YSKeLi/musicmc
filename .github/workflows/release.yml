@@ -1,0 +1,37 @@
+name: Release plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build neutral plugin artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode clean verify
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JAR=$(find target -maxdepth 1 -type f -name 'MusicMC-*.jar' -print -quit)
+          test -n "$JAR"
+          gh release create "$GITHUB_REF_NAME" "$JAR#Spigot plugin" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "MusicMC $GITHUB_REF_NAME" \
+            --generate-notes

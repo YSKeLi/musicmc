@@ -1,0 +1,124 @@
+name: Process music submission
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions: {}
+
+concurrency:
+  group: musicmc-catalog-publisher
+  cancel-in-progress: false
+
+jobs:
+  process:
+    if: startsWith(github.event.issue.title, '[Music Upload] ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Check out trusted workflow code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+
+      - name: Mark submission processing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label music-processing
+
+      - name: Ensure FFmpeg is available
+        shell: bash
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+
+      - name: Validate, transcode, and build pack
+        id: processor
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 github-upload-service/scripts/process_submission.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --public-key github-upload-service/config/upload-ticket-public.pem \
+            --output build \
+            --release-tag "song-${{ github.event.issue.number }}-${{ github.run_id }}"
+
+      - name: Publish immutable release
+        id: publisher
+        if: steps.processor.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+        run: |
+          set -a
+          source build/action-output.env
+          set +a
+          python3 github-upload-service/scripts/update_catalog.py \
+            --catalog catalog.json \
+            --manifest "$MANIFEST_PATH" \
+            --repository "$GITHUB_REPOSITORY"
+          gh release create "$RELEASE_TAG" \
+            "$PACK_PATH#Minecraft resource pack" \
+            "$SOURCE_ARCHIVE_PATH#Original submitted ZIP" \
+            "$MANIFEST_PATH#MusicMC song manifest" \
+            "catalog.json#Public MusicMC song catalog" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "MusicMC song #${{ github.event.issue.number }}" \
+            --notes-file build/release-notes.md \
+            >build/publish.log 2>&1
+          git config user.name "$GITHUB_REPOSITORY_OWNER"
+          git config user.email "$GITHUB_REPOSITORY_OWNER@users.noreply.github.com"
+          git add catalog.json
+          git commit -m "Publish MusicMC song #${{ github.event.issue.number }}"
+          git push origin HEAD:main
+
+      - name: Mark submission ready
+        if: steps.processor.outcome == 'success' && steps.publisher.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file build/success-comment.md
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label music-processing --add-label music-ready
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/labels/music-pending" >/dev/null 2>&1 || true
+          gh issue close "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --reason completed
+
+      - name: Mark submission rejected
+        if: steps.processor.outcome != 'success' || steps.publisher.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if [ ! -f build/error-comment.md ]; then
+            mkdir -p build
+            printf '%s\n' 'MusicMC could not publish this submission. Inspect the workflow run.' > build/error-comment.md
+          fi
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file build/error-comment.md
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label music-processing --add-label music-rejected
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/labels/music-pending" >/dev/null 2>&1 || true
+          gh issue close "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --reason "not planned"
+
+      - name: Remove temporary upload release
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MUSICMC_AUTOMATION_TOKEN || github.token }}
+        run: |
+          UPLOAD_TAG=$(python3 github-upload-service/scripts/submission_release.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --repository "$GITHUB_REPOSITORY")
+          if [ -n "$UPLOAD_TAG" ]; then
+            gh release delete "$UPLOAD_TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          fi

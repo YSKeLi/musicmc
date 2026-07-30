@@ -1,0 +1,41 @@
+name: Deploy upload portal
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Build static site
+        env:
+          MUSICMC_UPLOAD_API_URL: ${{ vars.MUSICMC_UPLOAD_API_URL }}
+        run: |
+          mkdir -p _site
+          cp -R github-upload-service/docs/. _site/
+          cp catalog.json _site/catalog.json
+          node scripts/render-site-config.mjs _site/config.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

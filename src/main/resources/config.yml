@@ -1,0 +1,32 @@
+github:
+  # Replace OWNER/REPOSITORY and the portal URL before production use.
+  # The official API is preferred for catalog integrity; no GitHub token is used.
+  catalog-url: "https://api.github.com/repos/${musicmc.github.repository}/contents/catalog.json?ref=${musicmc.github.branch}"
+  catalog-fallback-urls:
+    - "https://gh.jasonzeng.dev/https://raw.githubusercontent.com/${musicmc.github.repository}/${musicmc.github.branch}/catalog.json"
+    - "https://raw.githubusercontent.com/${musicmc.github.repository}/${musicmc.github.branch}/catalog.json"
+    - "https://cdn.jsdelivr.net/gh/${musicmc.github.repository}@${musicmc.github.branch}/catalog.json"
+  # Only GitHub Release downloads are proxied; every downloaded file is hash-checked.
+  download-proxy-prefixes:
+    - "https://gh.jasonzeng.dev/"
+  issue-url: "${musicmc.portal.url}"
+
+sync:
+  interval-seconds: 120
+  connect-timeout-seconds: 15
+  request-timeout-seconds: 60
+
+upload:
+  # Relative paths are resolved inside plugins/MusicMC.
+  private-key-file: "upload-ticket-private.pem"
+  ticket-expiration-minutes: 15
+
+resource-packs:
+  # When true, declining a song pack disconnects the player.
+  force: false
+  prompt: "MusicMC 需要加载歌曲资源包"
+
+playback:
+  # Positional audio fades linearly to silence at this distance.
+  range-blocks: 25.0
+  pitch: 1.0
