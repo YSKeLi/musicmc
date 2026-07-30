@@ -1,79 +1,53 @@
 # MusicMC
 
-MusicMC 是一个面向 Spigot 1.21.11 的自定义音乐唱片系统。玩家在游戏内申请一次性上传凭证，通过 GitHub Pages 上传音乐 ZIP；Cloudflare Worker 使用仓库专用令牌创建处理任务，GitHub Actions 自动校验、转码、生成资源包、发布 Release 并更新歌曲目录。Minecraft 服务器不保存 GitHub 令牌，也不需要对外开放网页端口。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-本仓库包含完整系统，不需要再拆分插件仓库、网页仓库和上传仓库：
+MusicMC is a self-hosted custom music-disc system for Spigot 1.21.11. It combines a Java plugin, a static upload portal, a Cloudflare Worker, and GitHub Actions that validate audio, build resource packs, publish immutable song releases, and update a public catalog.
 
-```text
-MusicMC/
-├─ src/                              Spigot 插件源码与测试
-├─ github-upload-service/
-│  ├─ docs/                          上传页和歌曲列表
-│  ├─ worker/                        Cloudflare Worker
-│  ├─ scripts/                       音频校验、转码和目录发布
-│  └─ config/                        上传签名公钥
-├─ scripts/                           初始化和安全检查脚本
-├─ .github/workflows/                 CI、Pages、Worker、歌曲处理和插件发布
-└─ catalog.json                       服务器同步的公开歌曲目录
-```
+This repository is a deployment template. It contains no live service URL, production song catalog, private key, personal access token, or enabled Pages deployment. Deployment workflows are manual until an administrator explicitly configures a fork.
 
-## 功能
+## Features
 
-- `/music upload <歌曲名称>` 生成 15 分钟有效的 P-256 签名上传链接。
-- 玩家不需要 GitHub 账号；自动模式由 Worker 代为上传 ZIP 和创建 Issue。
-- 支持 MP3、M4A、AAC、WAV、FLAC、OGG 和 OPUS，ZIP 最大 25 MB，歌曲最长 10 分钟。
-- GitHub Actions 使用 FFmpeg 转为 OGG Vorbis，并生成 Minecraft 资源包。
-- `/getcd <歌曲名称>` 支持歌曲名称补全并发放自定义唱片。
-- 唱片声音默认在 25 格内线性衰减，距离越远音量越低。
-- 插件每 120 秒同步公开目录，支持 GitHub API、Raw、jsDelivr 和下载代理回退。
-- 每名玩家上传次数不限；重复歌曲名和重复凭证仍会被拒绝。
+- `/music upload <name>` creates a short-lived P-256 signed upload link.
+- Players upload one supported audio file inside `<name>.zip` without needing a GitHub account.
+- GitHub Actions validate and transcode MP3, M4A, AAC, WAV, FLAC, OGG, or OPUS audio.
+- `/getcd <name>` gives a custom disc and supports song-name completion.
+- Jukebox audio fades linearly to silence over 25 blocks by default.
+- Catalog synchronization retries GitHub API, Raw, jsDelivr, and configured download proxies.
+- There is no per-player upload count limit; duplicate names and reused tickets are rejected.
 
-## 玩家流程
+## Repository layout
 
 ```text
-/music upload abc
-        ↓
-打开服务器返回的网页
-        ↓
-选择 abc.zip（ZIP 内只有一个音乐文件）
-        ↓
-Worker 创建临时 Release 和处理 Issue
-        ↓
-Actions 转码并更新 catalog.json
-        ↓
-服务器自动同步，玩家执行 /getcd abc
+src/                              Spigot plugin and tests
+github-upload-service/docs/       Static portal and song list
+github-upload-service/worker/     Cloudflare upload Worker
+github-upload-service/scripts/    Audio validation and publishing
+github-upload-service/config/     Replaceable ticket public key
+scripts/                           Bootstrap and security tools
+.github/workflows/                CI and manual deployment workflows
+catalog.json                      Empty public catalog template
 ```
 
-玩家使用说明见 [docs/PLAYER_GUIDE.zh-CN.md](docs/PLAYER_GUIDE.zh-CN.md)。
+## Build
 
-## 快速构建
-
-要求 Java 21。
-
-Windows：
+Java 21 is required.
 
 ```powershell
 .\mvnw.cmd clean verify
 ```
 
-Linux 或 macOS：
+On Linux or macOS:
 
 ```bash
 ./mvnw clean verify
 ```
 
-插件输出到 `target/MusicMC-1.0.0.jar`。
+The plugin is written to `target/MusicMC-1.0.0.jar`. The default artifact contains `OWNER/REPOSITORY` and `https://example.com/musicmc/` placeholders; configure your deployment before installing it on a production server.
 
-## 一键部署
+## Self-hosting
 
-完整自动化部署需要安装 Git、Node.js 22、GitHub CLI 和 Wrangler，并准备：
-
-- 一个只授权当前仓库的 GitHub Fine-grained PAT；
-- 一个 Cloudflare API Token；
-- Cloudflare Account ID；
-- 一个 Cloudflare 账号；自有域名可选。
-
-登录 CLI 后运行：
+Install Git, Java 21, Node.js 22, GitHub CLI, and Wrangler, then authenticate:
 
 ```powershell
 gh auth login
@@ -81,40 +55,30 @@ npx wrangler login
 .\scripts\bootstrap.ps1 -Repository OWNER/REPOSITORY
 ```
 
-脚本会生成上传签名密钥、部署 Worker、写入 GitHub Secrets/Variables、创建 Issue 标签、启用 Pages、提交公钥并推送。令牌通过隐藏输入读取，不会写入仓库。
+The bootstrap script generates a fresh signing key pair, deploys a Worker, writes repository-scoped Secrets and Variables, enables Pages, pushes the public key, and explicitly starts the manual Pages workflow. Nothing deploys merely because this source repository is cloned or updated.
 
-所有权限和手动部署步骤见 [docs/DEPLOYMENT.zh-CN.md](docs/DEPLOYMENT.zh-CN.md)。从旧 `MusicMC-Uploads` 迁移见 [docs/MIGRATION.zh-CN.md](docs/MIGRATION.zh-CN.md)。
+See [Deployment](docs/DEPLOYMENT.md), [Architecture](docs/ARCHITECTURE.md), and [Migration](docs/MIGRATION.md).
 
-## 安装插件
+## Player commands
 
-1. 将构建或 Release 中的 JAR 放入服务器 `plugins` 目录。
-2. 将初始化脚本生成的私钥复制到 `plugins/MusicMC/upload-ticket-private.pem`。
-3. 完整重启服务器，不要使用 `/reload`。
-4. 玩家必须允许服务器资源包才能听到自定义音乐。
-
-私钥只存在于 Minecraft 服务器。插件运行时不需要 GitHub、Cloudflare 或其他 API Token。
-
-## 命令
-
-| 命令 | 权限 | 作用 |
+| Command | Permission | Purpose |
 | --- | --- | --- |
-| `/music upload <名称>` | `musicmc.upload` | 创建一次性上传链接；名称不写音频扩展名 |
-| `/music list [页码]` | 无额外权限 | 查看已发布歌曲 |
-| `/music status` | 无额外权限 | 查看目录同步与待处理上传状态 |
-| `/music pack` | 无额外权限 | 重新发送所有歌曲资源包 |
-| `/music sync` | `musicmc.admin` | 立即同步歌曲目录 |
-| `/getcd <名称>` | `musicmc.getcd` | 获取唱片并自动补全歌曲名称 |
+| `/music upload <name>` | `musicmc.upload` | Create a one-time upload link; omit the audio extension |
+| `/music list [page]` | none | List published songs |
+| `/music status` | none | Show catalog and pending-upload status |
+| `/music pack` | none | Re-send current resource packs |
+| `/music sync` | `musicmc.admin` | Synchronize the catalog immediately |
+| `/getcd <name>` | `musicmc.getcd` | Get a disc with song-name completion |
 
-## 自动化
+The player guide is available in [English](docs/PLAYER_GUIDE.md) and [简体中文](docs/PLAYER_GUIDE.zh-CN.md).
 
-- `CI`：测试 Java 插件、网页、Python 处理器和 Worker，并执行敏感信息扫描。
-- `Deploy upload portal`：将网页和最新 `catalog.json` 发布到 GitHub Pages。
-- `Deploy upload Worker`：Worker 代码变更后自动部署，并恢复仓库、CORS、令牌和公钥绑定。
-- `Process music submission`：处理 `[Music Upload]` Issue，发布歌曲 Release 和目录提交。
-- `Release plugin`：推送 `v*` 标签时构建并发布插件 JAR。
+## Automation safety
 
-系统设计和信任边界见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，安全策略见 [SECURITY.md](SECURITY.md)。
+- `CI` runs on pushes and pull requests but creates no external service.
+- `Deploy upload portal` and `Deploy upload Worker` are manual-only workflows.
+- `Process music submission` runs only after a configured service creates a matching Issue.
+- `Release plugin` runs only when an administrator explicitly pushes a `v*` tag.
 
 ## License
 
-代码使用 [MIT License](LICENSE)。
+MusicMC is released under the [MIT License](LICENSE). An [unofficial Chinese translation](LICENSE.zh-CN.md) is provided for reference.

@@ -1,5 +1,7 @@
 # MusicMC 玩家使用教程
 
+[English](PLAYER_GUIDE.md) | [简体中文](PLAYER_GUIDE.zh-CN.md)
+
 ## 上传歌曲
 
 假设歌曲名称是 `abc`：

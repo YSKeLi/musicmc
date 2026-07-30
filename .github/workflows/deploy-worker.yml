@@ -1,12 +1,6 @@
 name: Deploy upload Worker
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - github-upload-service/worker/**
-      - github-upload-service/config/upload-ticket-public.pem
-      - .github/workflows/deploy-worker.yml
   workflow_dispatch:
 
 permissions:

@@ -31,8 +31,8 @@ test("builds the sections expected by the processor", () => {
 });
 
 test("creates a standard prefilled GitHub issue URL", () => {
-  const url = new URL(buildIssueUrl(submission, "https://github.com/YSKeLi/musicmc/issues/new"));
-  assert.equal(url.origin + url.pathname, "https://github.com/YSKeLi/musicmc/issues/new");
+  const url = new URL(buildIssueUrl(submission, "https://github.com/example/musicmc/issues/new"));
+  assert.equal(url.origin + url.pathname, "https://github.com/example/musicmc/issues/new");
   assert.equal(url.searchParams.get("title"), "[Music Upload] 晴天");
   assert.equal(url.searchParams.get("body"), buildIssueBody(submission));
   assert.equal(url.searchParams.has("labels"), false);

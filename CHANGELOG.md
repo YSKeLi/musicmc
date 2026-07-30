@@ -1,5 +1,7 @@
 # Changelog
 
+[English](CHANGELOG.md) | [简体中文](CHANGELOG.zh-CN.md)
+
 ## 1.0.0 - 2026-07-30
 
 - Added the Spigot 1.21.11 custom-disc plugin and `/getcd` completion.

@@ -200,6 +200,11 @@ try {
         throw "Deployment is configured, but the public key commit could not be pushed."
     }
 
+    & gh workflow run pages.yml --repo $Repository --ref main
+    if ($LASTEXITCODE -ne 0) {
+        throw "Deployment is configured, but the manual Pages workflow could not be started."
+    }
+
     Write-Host ""
     Write-Host "MusicMC deployment configured."
     Write-Host "Portal:     $PortalUrl"

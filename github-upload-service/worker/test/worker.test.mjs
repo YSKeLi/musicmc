@@ -70,7 +70,7 @@ test("streams an accepted ZIP to a release and creates an issue", async () => {
     }
     if (String(url).startsWith("https://uploads.github.com/")) {
       return Response.json({
-        browser_download_url: "https://github.com/YSKeLi/MusicMC-Uploads/releases/download/upload-0123456789abcdef0123456789abcdef/submission-0123456789abcdef0123456789abcdef.zip",
+        browser_download_url: "https://github.com/example/musicmc/releases/download/upload-0123456789abcdef0123456789abcdef/submission-0123456789abcdef0123456789abcdef.zip",
       }, { status: 201 });
     }
     if (String(url).endsWith("/issues")) {
@@ -82,7 +82,7 @@ test("streams an accepted ZIP to a release and creates an issue", async () => {
   const request = new Request("https://upload.example/upload", {
     method: "POST",
     headers: {
-      Origin: "https://yskeli.github.io",
+      Origin: "https://music.example.com",
       "Content-Type": "application/zip",
       "Content-Length": String(bytes.length),
       "X-MusicMC-Ticket": fixture.ticket,
@@ -93,9 +93,9 @@ test("streams an accepted ZIP to a release and creates an issue", async () => {
 
   const response = await handleRequest(request, {
     GITHUB_TOKEN: "test-token",
-    GITHUB_REPOSITORY: "YSKeLi/MusicMC-Uploads",
+    GITHUB_REPOSITORY: "example/musicmc",
     GITHUB_BRANCH: "main",
-    ALLOWED_ORIGIN: "https://yskeli.github.io",
+    ALLOWED_ORIGIN: "https://music.example.com",
     UPLOAD_PUBLIC_KEY: fixture.publicKeyPem,
   }, { fetch: fetchMock });
 

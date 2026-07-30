@@ -20,21 +20,10 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Build configured plugin
-        env:
-          CONFIGURED_PORTAL_URL: ${{ vars.MUSICMC_PORTAL_URL }}
+      - name: Build neutral plugin artifact
         run: |
-          set -euo pipefail
-          PORTAL_URL="$CONFIGURED_PORTAL_URL"
-          if [ -z "$PORTAL_URL" ]; then
-            OWNER=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
-            REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}
-            PORTAL_URL="https://${OWNER}.github.io/${REPOSITORY_NAME}/"
-          fi
           chmod +x mvnw
-          ./mvnw --batch-mode clean verify \
-            -Dmusicmc.github.repository="$GITHUB_REPOSITORY" \
-            -Dmusicmc.portal.url="$PORTAL_URL"
+          ./mvnw --batch-mode clean verify
 
       - name: Publish GitHub Release
         env:

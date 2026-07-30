@@ -41,18 +41,18 @@ TestPlayer
     def test_accepts_only_trusted_automated_release_urls(self) -> None:
         nonce = "0123456789abcdef0123456789abcdef"
         trusted = (
-            "https://github.com/YSKeLi/MusicMC-Uploads/releases/download/"
+            "https://github.com/example/musicmc/releases/download/"
             f"upload-{nonce}/submission-{nonce}.zip"
         )
         self.assertEqual(
             trusted,
-            PROCESSOR.find_attachment_url(f"[song.zip]({trusted})", "YSKeLi/MusicMC-Uploads"),
+            PROCESSOR.find_attachment_url(f"[song.zip]({trusted})", "example/musicmc"),
         )
         with self.assertRaises(PROCESSOR.SubmissionError):
             PROCESSOR.find_attachment_url(
                 "https://github.com/other/repo/releases/download/upload-"
                 f"{nonce}/submission-{nonce}.zip",
-                "YSKeLi/MusicMC-Uploads",
+                "example/musicmc",
             )
 
 

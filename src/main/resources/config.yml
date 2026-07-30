@@ -1,4 +1,5 @@
 github:
+  # Replace OWNER/REPOSITORY and the portal URL before production use.
   # The official API is preferred for catalog integrity; no GitHub token is used.
   catalog-url: "https://api.github.com/repos/${musicmc.github.repository}/contents/catalog.json?ref=${musicmc.github.branch}"
   catalog-fallback-urls:

@@ -19,14 +19,14 @@ class SubmissionReleaseTest(unittest.TestCase):
             "issue": {
                 "body": (
                     "### 音乐 ZIP 文件\n\n"
-                    f"[song.zip](https://github.com/YSKeLi/MusicMC-Uploads/releases/download/"
+                    f"[song.zip](https://github.com/example/musicmc/releases/download/"
                     f"upload-{nonce}/submission-{nonce}.zip)"
                 )
             }
         }
         self.assertEqual(
             f"upload-{nonce}",
-            SUBMISSION_RELEASE.find_upload_tag(event, "YSKeLi/MusicMC-Uploads"),
+            SUBMISSION_RELEASE.find_upload_tag(event, "example/musicmc"),
         )
 
     def test_ignores_other_repositories(self) -> None:
@@ -37,7 +37,7 @@ class SubmissionReleaseTest(unittest.TestCase):
                 "submission-0123456789abcdef0123456789abcdef.zip"
             }
         }
-        self.assertEqual("", SUBMISSION_RELEASE.find_upload_tag(event, "YSKeLi/MusicMC-Uploads"))
+        self.assertEqual("", SUBMISSION_RELEASE.find_upload_tag(event, "example/musicmc"))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,10 @@
 # MusicMC 完整部署说明
 
+[English](DEPLOYMENT.md) | [简体中文](DEPLOYMENT.zh-CN.md)
+
 本说明用于从一个公开 GitHub 仓库部署完整 MusicMC，包括 Spigot 插件、上传网页、Cloudflare Worker、GitHub Actions 和歌曲目录。
+
+源码仓库默认不启用 Pages 或 Worker，也不包含真实服务地址。以下步骤会为执行者自己的 fork 创建服务，只有管理员主动运行初始化脚本或手动工作流时才会发生部署。
 
 ## 1. 不需要什么
 
@@ -45,7 +49,7 @@ npx wrangler login
   - Issues：Read and write；
   - Metadata：GitHub 自动提供 Read-only。
 
-如果令牌原来只授权 `MusicMC-Uploads`，它不能用于新的 `musicmc` 仓库。必须编辑令牌的仓库访问范围或生成新令牌。
+令牌只能访问创建者明确选择的自托管仓库，不能复用只授权其他仓库的令牌。
 
 同一个值会保存到两个受保护位置：
 
@@ -104,7 +108,8 @@ MusicMC 使用 P-256 ECDSA 密钥对：
 7. 写入 GitHub Actions Secrets 和 Variables；
 8. 创建 `music-pending`、`music-processing`、`music-ready` 和 `music-rejected` 标签；
 9. 启用 GitHub Pages 的 Actions 发布模式；
-10. 提交公钥并推送到 `main`。
+10. 提交公钥并推送到 `main`；
+11. 显式启动手动 Pages 工作流。
 
 生成的私钥默认位于：
 
@@ -158,22 +163,22 @@ MUSICMC_PORTAL_URL
 | 工作流 | 触发条件 | 作用 |
 | --- | --- | --- |
 | `CI` | push / pull request | 测试所有组件并扫描敏感文件 |
-| `Deploy upload portal` | 网页或目录变更 | 发布 GitHub Pages |
-| `Deploy upload Worker` | Worker 或公钥变更 | 自动部署 Worker并恢复绑定 |
+| `Deploy upload portal` | 手动运行 | 发布 GitHub Pages |
+| `Deploy upload Worker` | 手动运行 | 部署 Worker 并恢复绑定 |
 | `Process music submission` | `[Music Upload]` Issue | 校验、转码、发布 Release、更新目录 |
 | `Release plugin` | 推送 `v*` 标签 | 构建并发布插件 JAR |
 
-在仓库的 Actions 页面确认这些工作流全部启用。Pages 首次部署需要在 Settings → Pages 中选择 GitHub Actions；初始化脚本会尝试自动完成。
+在仓库的 Actions 页面确认这些工作流全部可用。Pages 和 Worker 不会因普通 push 自动部署；初始化脚本会显式配置并启动首次 Pages 部署。
 
 ## 7. 构建和发布插件
 
-本地构建官方配置：
+本地构建中性模板：
 
 ```powershell
 .\mvnw.cmd clean verify
 ```
 
-为 fork 构建指定仓库和页面：
+默认 JAR 使用 `OWNER/REPOSITORY` 和 `https://example.com/musicmc/` 占位符。为自己的部署构建时指定仓库和页面：
 
 ```powershell
 .\mvnw.cmd clean verify `
@@ -215,12 +220,12 @@ cd github-upload-service\worker
 npm ci
 npm test
 npx wrangler login
-npx wrangler deploy --name musicmc-upload `
+npx wrangler deploy --name <WORKER_NAME> `
   --var "ALLOWED_ORIGIN:https://OWNER.github.io" `
   --var "GITHUB_REPOSITORY:OWNER/REPOSITORY" `
   --var "GITHUB_BRANCH:main"
-npx wrangler secret put GITHUB_TOKEN --name musicmc-upload
-npx wrangler secret put UPLOAD_PUBLIC_KEY --name musicmc-upload
+npx wrangler secret put GITHUB_TOKEN --name <WORKER_NAME>
+npx wrangler secret put UPLOAD_PUBLIC_KEY --name <WORKER_NAME>
 ```
 
 `GITHUB_TOKEN` 提示中粘贴 GitHub Fine-grained PAT。`UPLOAD_PUBLIC_KEY` 提示中粘贴 `github-upload-service/config/upload-ticket-public.pem` 的完整内容。

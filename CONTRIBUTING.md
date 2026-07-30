@@ -1,5 +1,7 @@
 # Contributing
 
+[English](CONTRIBUTING.md) | [简体中文](CONTRIBUTING.zh-CN.md)
+
 Use Java 21 and Node.js 22. Before opening a pull request, run:
 
 ```powershell

@@ -1,13 +1,6 @@
 name: Deploy upload portal
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - catalog.json
-      - github-upload-service/docs/**
-      - scripts/render-site-config.mjs
-      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
