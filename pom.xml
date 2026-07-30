@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spigot.version>1.21.11-R0.1-SNAPSHOT</spigot.version>
         <gson.version>2.13.2</gson.version>
-        <junit.version>5.13.4</junit.version>
+        <junit.version>6.1.2</junit.version>
         <musicmc.github.repository>OWNER/REPOSITORY</musicmc.github.repository>
         <musicmc.github.branch>main</musicmc.github.branch>
         <musicmc.portal.url>https://example.com/musicmc/</musicmc.portal.url>
