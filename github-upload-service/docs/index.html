@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#17643a">
+  <title>MusicMC 音乐提交</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="MusicMC 音乐提交首页">
+      <span class="brand-avatar" aria-hidden="true">CD</span>
+      <span>
+        <strong>MusicMC</strong>
+        <small>音乐提交</small>
+      </span>
+    </a>
+    <nav class="site-nav" aria-label="主导航">
+      <a href="./" aria-current="page">上传音乐</a>
+      <a href="./songs.html">歌曲列表</a>
+    </nav>
+  </header>
+
+  <main class="portal-shell">
+    <section class="portal-panel" aria-labelledby="page-title">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">服务器授权提交</p>
+          <h1 id="page-title">确认歌曲信息</h1>
+        </div>
+        <span class="status" id="link-status" role="status">检查链接</span>
+      </div>
+
+      <div class="notice notice-error" id="link-error" hidden>
+        上传链接不完整或已经损坏，请回到 Minecraft 重新执行上传命令。
+      </div>
+
+      <form id="submission-form" novalidate>
+        <div class="field-grid">
+          <label class="field">
+            <span>歌曲名称</span>
+            <input id="song-name" name="song-name" type="text" readonly>
+          </label>
+
+          <label class="field">
+            <span>Minecraft 玩家名</span>
+            <input id="player-name" name="player-name" type="text" readonly>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>上传凭证</span>
+          <textarea id="upload-ticket" name="upload-ticket" rows="4" readonly></textarea>
+        </label>
+
+        <label class="field upload-field" id="upload-field">
+          <span>音乐 ZIP 文件</span>
+          <input id="music-zip" name="music-zip" type="file" accept=".zip,application/zip">
+          <small id="filename-hint"></small>
+        </label>
+
+        <div class="notice notice-error" id="upload-error" role="alert" hidden></div>
+        <div class="notice notice-success" id="upload-success" role="status" hidden></div>
+
+        <div class="action-bar">
+          <span id="action-hint">正在检查自动上传服务</span>
+          <button id="continue-button" type="submit" disabled>上传并提交</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="requirements" aria-labelledby="requirements-title">
+      <h2 id="requirements-title">文件要求</h2>
+      <dl>
+        <div>
+          <dt>格式</dt>
+          <dd>ZIP 内仅一个音频文件</dd>
+        </div>
+        <div>
+          <dt>音频</dt>
+          <dd>MP3、M4A、AAC、WAV、FLAC、OGG、OPUS</dd>
+        </div>
+        <div>
+          <dt>大小</dt>
+          <dd>ZIP 不超过 25 MB</dd>
+        </div>
+        <div>
+          <dt>时长</dt>
+          <dd>不超过 10 分钟</dd>
+        </div>
+      </dl>
+      <p class="privacy-note">提交内容和附件将公开保存在 GitHub。</p>
+    </aside>
+  </main>
+
+  <script src="./config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

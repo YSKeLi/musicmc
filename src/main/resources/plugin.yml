@@ -1,0 +1,26 @@
+name: MusicMC
+version: '${project.version}'
+main: dev.yskeli.musicmc.MusicMCPlugin
+api-version: '1.21.11'
+author: YSKeLi
+website: https://github.com/${musicmc.github.repository}
+description: GitHub-backed custom music discs
+
+commands:
+  music:
+    description: Submit and synchronize songs
+    usage: /music <upload|list|status|pack|sync>
+  getcd:
+    description: Get a custom music disc
+    usage: /getcd <song name>
+
+permissions:
+  musicmc.upload:
+    description: Create signed GitHub upload tickets
+    default: true
+  musicmc.getcd:
+    description: Get custom music discs
+    default: true
+  musicmc.admin:
+    description: Force catalog synchronization and view diagnostics
+    default: op
