@@ -62,7 +62,7 @@ Linux 或 macOS：
 ./mvnw clean verify
 ```
 
-插件输出到 `target/MusicMC-1.0.0-SNAPSHOT.jar`。
+插件输出到 `target/MusicMC-1.0.0.jar`。
 
 ## 一键部署
 
