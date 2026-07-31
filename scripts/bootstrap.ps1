@@ -190,6 +190,7 @@ try {
     Set-RepositoryVariable "MUSICMC_UPLOAD_API_URL" $UploadApiUrl
     Set-RepositoryVariable "MUSICMC_PAGES_ORIGIN" $PagesOrigin
     Set-RepositoryVariable "MUSICMC_PORTAL_URL" $PortalUrl
+    Set-RepositoryVariable "MUSICMC_ENABLE_PAGES" "true"
 
     $labels = @(
         @{ Name = "music-pending"; Color = "d4c5f9"; Description = "Music upload waiting for processing" },

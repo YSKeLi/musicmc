@@ -22,7 +22,7 @@
 .\scripts\bootstrap.ps1 -Repository OWNER/REPOSITORY
 ```
 
-脚本会创建或复用签名密钥、更新公钥注册表、部署 Worker、写入 Secret、创建标签、启用 Pages，并显示投稿页地址和私钥路径。只把生成的私钥复制到：
+脚本会创建或复用签名密钥、更新公钥注册表、部署 Worker、写入 Secret、创建标签、启用 Pages，并显示投稿页地址和私钥路径。它会显式设置 `MUSICMC_ENABLE_PAGES=true`；没有这个仓库变量时 Pages 工作流会跳过，因此仅用于阅读源码的仓库不会创建或替换任何线上站点。只把生成的私钥复制到：
 
 ```text
 plugins/MusicMC/upload-ticket-private.pem

@@ -22,7 +22,7 @@ Authenticate `gh` and Wrangler, then run:
 .\scripts\bootstrap.ps1 -Repository OWNER/REPOSITORY
 ```
 
-The script creates or reuses the signing key, updates the public-key registry, deploys the Worker, installs secrets, creates labels, enables Pages, and prints the portal URL and private-key path. Copy only the generated private key to:
+The script creates or reuses the signing key, updates the public-key registry, deploys the Worker, installs secrets, creates labels, enables Pages, and prints the portal URL and private-key path. It sets `MUSICMC_ENABLE_PAGES=true`; without that explicit repository variable the Pages workflow is skipped, so a source-only fork cannot create or replace a live site. Copy only the generated private key to:
 
 ```text
 plugins/MusicMC/upload-ticket-private.pem
