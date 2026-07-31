@@ -29,6 +29,12 @@ jobs:
       - name: Verify repository contents
         run: python3 scripts/check-repository.py
 
+      - name: Verify deployment script plan
+        shell: pwsh
+        run: |
+          ./scripts/deploy.ps1 -Mode Automatic -GitHubOwner example `
+            -CloudflareSubdomain example-musicmc -PlanOnly -NonInteractive
+
       - name: Test and package Spigot plugin
         run: |
           chmod +x mvnw

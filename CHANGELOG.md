@@ -11,3 +11,5 @@
 - Added one-active-job-per-player protection, global queue limits, and unlimited lifetime submissions.
 - Added in-game browser, search, recent uploads, player uploads, local administration, and revision-preserving replacement.
 - Added GitHub Release and S3-compatible publishing backends, multi-key verification, automatic Pages refresh, and bilingual documentation.
+- Added guided automatic/manual deployment that creates separate runtime, Pages, and Worker services without assigning the source repository as a live service.
+- Added server-specific plugin builds, safe v1 catalog migration, existing-site/Worker collision handling, and missing-default config upgrades.

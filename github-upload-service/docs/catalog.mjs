@@ -1,4 +1,7 @@
-export const CATALOG_URLS = ["./catalog.json"];
+const configuredCatalogUrls = globalThis.MUSICMC_CONFIG?.catalogUrls;
+export const CATALOG_URLS = Array.isArray(configuredCatalogUrls) && configuredCatalogUrls.length > 0
+  ? configuredCatalogUrls
+  : ["./catalog.json"];
 
 export function parseCatalog(value) {
   if (!value || !new Set([1, 2]).has(value.schema_version) || !Array.isArray(value.songs)) {

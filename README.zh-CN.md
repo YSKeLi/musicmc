@@ -40,9 +40,17 @@ MusicMC 是一套面向 Spigot 1.21.11 的开源自定义唱片插件和 GitHub 
 
 打包结果为 `target/MusicMC-2.0.0.jar`。
 
+只想为指定的实际服务构建插件，同时不修改被 Git 跟踪的源码文件，可以执行：
+
+```powershell
+./scripts/build-plugin.ps1 `
+  -Repository OWNER/MusicMC-Uploads `
+  -PortalUrl https://owner.github.io/
+```
+
 ## 部署
 
-从[部署指南](docs/DEPLOYMENT.zh-CN.md)开始。仓库已经包含插件、投稿网页、Worker、Actions 处理脚本、目录格式、测试和初始化脚本，不写死任何生产网址、个人服务器、FRP 隧道、私钥、Cookie 或访问令牌。
+执行 `./scripts/deploy.ps1 -Mode Automatic` 可进入引导式一键部署；手动模式可以指定每个仓库和网址。完整说明见[部署指南](docs/DEPLOYMENT.zh-CN.md)。源码仓库包含插件、投稿网页、Worker、Actions 处理脚本、目录格式、测试和部署脚本，但默认绝不会作为执行者的实际服务。项目不写死任何生产网址、个人服务器、FRP 隧道、私钥、Cookie 或访问令牌。
 
 ## 已知限制
 

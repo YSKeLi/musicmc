@@ -30,6 +30,8 @@ public final class MusicMCPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        getConfig().options().copyDefaults(true);
+        saveConfig();
         try {
             PluginSettings settings = PluginSettings.load(this);
             SongLibrary library = new SongLibrary();

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { commandForSong, filterSongs, formatDuration, parseCatalog } from "../docs/catalog.mjs";
+
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 const songs = parseCatalog({
   schema_version: 2,
@@ -31,4 +38,42 @@ test("filters by song, artist, command, and uploader", () => {
 test("keeps v1 catalogs readable during migration", () => {
   assert.equal(parseCatalog({ schema_version: 1, songs: [{ display_name: "old" }] })[0].commandName, "old");
   assert.throws(() => parseCatalog({ schema_version: 3, songs: [] }));
+});
+
+test("uses a separately deployed runtime catalog when configured", async () => {
+  globalThis.MUSICMC_CONFIG = {
+    catalogUrls: ["https://raw.githubusercontent.com/example/runtime/main/catalog.json"],
+  };
+  try {
+    const configured = await import(`../docs/catalog.mjs?configured=${Date.now()}`);
+    assert.deepEqual(configured.CATALOG_URLS, globalThis.MUSICMC_CONFIG.catalogUrls);
+  } finally {
+    delete globalThis.MUSICMC_CONFIG;
+  }
+});
+
+test("renders a portal config for separate runtime and Pages repositories", () => {
+  const directory = mkdtempSync(join(tmpdir(), "musicmc-site-config-"));
+  const output = join(directory, "config.js");
+  try {
+    const result = spawnSync(process.execPath, [join(ROOT, "scripts/render-site-config.mjs"), output], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_REPOSITORY: "example/MusicMC-Uploads",
+        MUSICMC_UPLOAD_API_URL: "https://musicmc-upload.example-musicmc.workers.dev",
+        MUSICMC_CATALOG_URL:
+          "https://raw.githubusercontent.com/example/MusicMC-Uploads/main/catalog.json",
+        MUSICMC_CATALOG_BRANCH: "main",
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const generated = readFileSync(output, "utf8");
+    assert.match(generated, /example\/MusicMC-Uploads\/issues\/new/);
+    assert.match(generated, /raw\.githubusercontent\.com\/example\/MusicMC-Uploads/);
+    assert.match(generated, /cdn\.jsdelivr\.net\/gh\/example\/MusicMC-Uploads@main/);
+    assert.doesNotMatch(generated, /OWNER\/REPOSITORY/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

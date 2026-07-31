@@ -40,9 +40,17 @@ Administrators should also read [Administrator guide](docs/ADMIN_GUIDE.md).
 
 The shaded plugin is written to `target/MusicMC-2.0.0.jar`.
 
+To build a JAR preconfigured for a particular deployment without changing tracked source files:
+
+```powershell
+./scripts/build-plugin.ps1 `
+  -Repository OWNER/MusicMC-Uploads `
+  -PortalUrl https://owner.github.io/
+```
+
 ## Deploy
 
-Start with [Deployment](docs/DEPLOYMENT.md) or [部署指南](docs/DEPLOYMENT.zh-CN.md). The repository contains the plugin, portal, Worker, Actions processors, catalog schema, tests, and bootstrap scripts. No production URL, personal server, FRP tunnel, private key, Cookie, or access token is hard-coded.
+Run `./scripts/deploy.ps1 -Mode Automatic` for guided one-click setup, or use manual mode to select every repository and URL. Start with [Deployment](docs/DEPLOYMENT.md) or [部署指南](docs/DEPLOYMENT.zh-CN.md). The source repository contains the plugin, portal, Worker, Actions processors, catalog schema, tests, and deployment scripts, but is never used as the operator's live service by default. No production URL, personal server, FRP tunnel, private key, Cookie, or access token is hard-coded.
 
 ## Limits
 

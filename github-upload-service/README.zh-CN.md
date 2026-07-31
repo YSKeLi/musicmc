@@ -2,25 +2,19 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-本目录包含静态投稿页、Cloudflare Worker、GitHub Actions 来源适配器、目录发布器、滚动资源包构建器和测试。
+这个目录包含静态投稿网页、Cloudflare Worker、GitHub Actions 音源适配器、目录发布器、滚动资源包构建器及其测试。
 
 ```text
-docs/       GitHub Pages 投稿页与歌曲列表
-worker/     浏览器上传和创建 GitHub Issue
-actions/    只在 Actions 内运行的固定版本网易云适配器
-scripts/    校验、转码、分包和目录 v2 工具
-config/     只包含公开签名公钥
-tests/      网页与 Python 测试
+docs/       GitHub Pages 投稿页和歌曲目录
+worker/     验证服务器签名凭证并直接接收浏览器上传
+actions/    只在 GitHub Actions 中运行的音源适配器
+scripts/    校验、转码、分片、打包、发布和迁移工具
+tests/      网页和处理流程的自动测试
+config/     示例公钥和多公钥注册表
 ```
 
-Worker 的 `/upload` 接收 ZIP 流，`/netease` 接收 JSON 歌曲 ID；Worker 不提供音乐下载。Actions 会自动处理每个 `music-pending` Issue，不使用人工批准标签。
+Worker 不传输已发布的音频。玩家客户端下载资源包时，会直接访问 GitHub Releases 或配置的 S3 兼容对象存储，因此不会占用 Minecraft 服务器的 FRP 流量。
 
-在仓库根目录运行测试：
+公开源码中的配置都是示例值。执行 `scripts/deploy.ps1` 后，脚本会把实际运行所需文件发布到独立仓库，把投稿网页发布到独立 Pages 仓库，并生成只指向执行者服务的 `config.js`。
 
-```bash
-node --test github-upload-service/tests/*.test.mjs
-python3 -m unittest discover -s github-upload-service/tests -v
-cd github-upload-service/worker && npm ci && npm test
-```
-
-绑定、Secret、可选网易云 Cookie 和 S3 兼容存储见[部署指南](../docs/DEPLOYMENT.zh-CN.md)。
+所需绑定、Secrets、可选网易云 Cookie 和 S3 兼容存储配置见[部署指南](../docs/DEPLOYMENT.zh-CN.md)。
