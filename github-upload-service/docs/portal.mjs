@@ -90,6 +90,8 @@ export async function resolveNetEaseMetadata(apiUrl, submission, fetchImpl = fet
     throw new Error("网易云歌曲查询链接无效。");
   }
   let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
   try {
     response = await fetchImpl(new URL("/netease/metadata", apiUrl), {
       method: "POST",
@@ -98,10 +100,13 @@ export async function resolveNetEaseMetadata(apiUrl, submission, fetchImpl = fet
         "X-MusicMC-Ticket": submission.ticket,
       },
       body: JSON.stringify({ song_id: submission.providerId }),
+      signal: controller.signal,
     });
   } catch (error) {
     if (fallbackApiUrl) return resolvePublicNetEaseMetadata(fallbackApiUrl, submission.providerId, fetchImpl);
     throw error;
+  } finally {
+    clearTimeout(timeout);
   }
   let result = {};
   try { result = await response.json(); } catch { /* HTTP status remains useful. */ }
