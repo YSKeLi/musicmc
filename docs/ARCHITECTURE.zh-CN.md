@@ -2,45 +2,45 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-## 组件
+MusicMC 分为三层：投稿与校验、资源包分发、同步播放。
 
 ```mermaid
 flowchart LR
-    Player["Minecraft 玩家"] -->|/music upload| Plugin["Spigot 插件"]
-    Plugin -->|签名 MUS1 凭证| Portal["静态上传网页"]
-    Portal -->|ZIP 和凭证| Worker["Cloudflare Worker"]
-    Worker -->|临时 Release 和 Issue| GitHub["自托管 GitHub 仓库"]
-    GitHub -->|Issue 事件| Actions["GitHub Actions 和 FFmpeg"]
-    Actions -->|资源包 Release 和目录提交| GitHub
-    Plugin -->|同步公开目录| GitHub
-    Plugin -->|资源包| Player
+    Player["Minecraft 玩家"] -->|"/music upload 或 netease"| Plugin["Spigot 插件"]
+    Plugin -->|"短期签名凭证"| Portal["GitHub Pages 投稿页"]
+    Portal -->|"ZIP 或歌曲 ID"| Worker["Cloudflare Worker"]
+    Worker -->|"临时文件和 Issue"| GitHub["GitHub 仓库"]
+    GitHub -->|"Issue 事件"| Actions["GitHub Actions"]
+    Actions -->|"校验、获取、转码、分片"| Bundler["滚动资源包构建器"]
+    Bundler --> Storage["GitHub Release 或 S3 兼容存储"]
+    Bundler -->|"提交目录 v2"| GitHub
+    Plugin -->|"只读取公开目录"| GitHub
+    Client["Minecraft 客户端"] -->|"按需下载资源包"| Storage
+    Plugin -->|"片段时钟和 25 格听众管理"| Client
 ```
 
-仓库是持久状态存储。Minecraft 插件只需要 `catalog.json`；歌曲资源包和源压缩包保存在不可变的 GitHub Release 资产中。
+## 投稿层
 
-## 信任边界
+服务器用 P-256 私钥签发 15 分钟凭证，绑定玩家 UUID、玩家名、命令名称、一次性 nonce 和 `key_id`。Worker 验证后执行“每名玩家同时 1 个任务”和全服队列上限，再创建 `music-pending` Issue。Actions 会再次验签。自动校验成功后直接发布，没有人工批准状态。
 
-- Minecraft 服务器持有 P-256 私钥，并签发短期上传凭证。
-- 对应公钥提交到自托管仓库并配置为 Worker 绑定。
-- 上传网页不保存 Secret，也无法伪造有效凭证。
-- Worker 使用仅授权自托管仓库的 GitHub Token，并只接受配置来源的 CORS 请求。
-- Actions 在读取 ZIP 或发布歌曲前再次验证凭证。
-- FFmpeg 运行前会校验 ZIP 路径、压缩率、文件数量、扩展名、大小和时长。
-- 插件依据目录校验资源包 SHA-1 和源压缩包 SHA-256。
+ZIP 投稿先流式写入短期预发布。网易云投稿只传歌曲 ID，Actions 使用固定版本的内部 Node 适配器和 `NETEASE_COOKIE`。Cookie 不会进入网页、Worker、插件、目录或日志。
 
-## 提交状态
+## 分发层
 
-```text
-music-pending -> music-processing -> music-ready
-                                 \-> music-rejected
-```
+Actions 规范化音频并切成约 5 秒的 OGG 片段，再合入当前滚动资源包。一个包达到 20 首或接近 95 MB 时封包。每次修订使用新的资源包 UUID 和 SHA-1，目录中的相关歌曲指向最新修订。
 
-Worker 先创建 `upload-<凭证 nonce>` 预发布并流式上传 ZIP，再创建处理 Issue。工作流在成功或拒绝后删除临时 Release。
+插件只持久化 `catalog-cache.json` 和管理元数据。玩家进服不会加载全部歌曲；执行 `/getcd` 或靠近播放中的唱片机时，才请求所需资源包。客户端直接从公开资源地址下载，因此音频流量不经过 Minecraft 服务器和 FRP。
 
-## 失败行为
+## 播放层
 
-- 所有镜像失败时，目录同步继续使用最后一份有效本地目录。
-- 资源包下载先尝试配置代理，再尝试 GitHub 直连。
-- 上传失败不会写入歌曲目录。
-- 规范化后重名的歌曲和重复凭证会被拒绝。
-- Worker 缺少配置、来源不符、长度无效或签名无效时会默认拒绝请求。
+服务器为每台活动唱片机记录歌曲 ID、位置、开始时间、当前片段和听众集合。每 10 tick 移除 25 格外玩家，为新听众请求缺少的包，并在下一个片段开始时让已加载玩家加入。音频按 25 格数据包半径预先归一化，由 Minecraft 客户端执行位置线性衰减。
+
+原版客户端不能把资源包声音跳到指定采样位置，因此后来进入范围的玩家要等下一个片段。完全无缝并支持任意进度只能依靠客户端 Mod。
+
+## 故障行为
+
+- 所有目录地址失败时，插件继续使用最后一份有效缓存。
+- 资源包请求依次尝试配置的代理和直接地址。
+- 自动处理失败不会提交目录，并把 Issue 标记为 `music-failed`。
+- 资源包与歌曲版本使用不可变地址；上游短时故障时，已经缓存的内容仍可播放。
+- 替换音频会保留 `song_id` 并递增 `revision`，已有实体唱片会自动解析到新版本。

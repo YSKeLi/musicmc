@@ -2,83 +2,54 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-MusicMC 是一个面向 Spigot 1.21.11 的自托管自定义音乐唱片系统，包含 Java 插件、静态上传网页、Cloudflare Worker，以及用于校验音频、生成资源包、发布歌曲 Release 和更新公开目录的 GitHub Actions。
+MusicMC 是一套面向 Spigot 1.21.11 的开源自定义唱片插件和 GitHub 自动化服务。玩家可以提交 ZIP，或提交网易云歌曲 ID；GitHub Actions 自动校验、转码、分片和发布，服务器按需向玩家发送较小的资源包。
 
-本仓库是部署模板，不包含正在运行的服务地址、生产歌曲目录、私钥、个人访问令牌，也不会默认启用 GitHub Pages。只有管理员完成配置并手动运行部署工作流后，才会创建外部服务。
+## 主要能力
 
-## 功能
-
-- `/music upload <名称>` 生成短期有效的 P-256 签名上传链接。
-- 玩家无需 GitHub 账号，只需上传包含一个音频文件的 `<名称>.zip`。
-- 支持 MP3、M4A、AAC、WAV、FLAC、OGG 和 OPUS，并由 Actions 自动校验和转码。
-- `/getcd <名称>` 发放自定义唱片，并支持歌曲名称补全。
-- 唱片机声音默认在 25 格内线性衰减，到范围边缘时静音。
-- 目录同步支持 GitHub API、Raw、jsDelivr 和配置的下载代理回退。
-- 玩家上传次数不限；重复歌曲名和重复凭证仍会被拒绝。
-
-## 仓库结构
-
-```text
-src/                              Spigot 插件和测试
-github-upload-service/docs/       静态上传页和歌曲列表
-github-upload-service/worker/     Cloudflare 上传 Worker
-github-upload-service/scripts/    音频校验和发布脚本
-github-upload-service/config/     可替换的上传签名公钥
-scripts/                           初始化和安全检查工具
-.github/workflows/                CI 和手动部署工作流
-catalog.json                      空白公开目录模板
-```
-
-## 构建
-
-需要 Java 21。
-
-```powershell
-.\mvnw.cmd clean verify
-```
-
-Linux 或 macOS：
-
-```bash
-./mvnw clean verify
-```
-
-插件输出到 `target/MusicMC-1.0.0.jar`。默认产物包含 `OWNER/REPOSITORY` 和 `https://example.com/musicmc/` 占位符，投入生产服务器前必须完成自己的部署配置。
-
-## 自托管部署
-
-安装 Git、Java 21、Node.js 22、GitHub CLI 和 Wrangler，然后登录：
-
-```powershell
-gh auth login
-npx wrangler login
-.\scripts\bootstrap.ps1 -Repository OWNER/REPOSITORY
-```
-
-初始化脚本会生成全新签名密钥、部署 Worker、设置当前仓库的 Secrets 和 Variables、启用 Pages、推送公钥，并显式启动手动 Pages 工作流。仅克隆或更新本仓库不会部署任何服务。
-
-详细说明见[部署文档](docs/DEPLOYMENT.zh-CN.md)、[架构说明](docs/ARCHITECTURE.zh-CN.md)和[迁移说明](docs/MIGRATION.zh-CN.md)。
+- 运行于 Spigot 1.21.11 和 Java 21，不要求 Paper，也不要求客户端 Mod。
+- 投稿通过自动校验后直接发布，没有人工审核步骤。
+- 每名玩家历史投稿总次数不限，同时只能有 1 个正在处理的任务。
+- 每个滚动资源包最多合并 20 首歌曲，玩家只加载实际需要的资源包。
+- 音频切成约 5 秒一段；玩家中途进入唱片机 25 格范围后，会从下一段加入同步播放。
+- Minecraft 服务器只保存歌曲目录元数据。音频由 GitHub Release 或 S3 兼容对象存储直接传给客户端，不经过 Minecraft 服务器和 FRP。
+- 提供本地禁用/启用歌曲、禁止玩家投稿、保留旧唱片的音频替换、存储诊断和游戏内歌曲菜单。
+- 可选用 GitHub Actions 内部的网易云 Cookie 适配器；Cookie 只保存为仓库 Secret。
 
 ## 玩家命令
 
-| 命令 | 权限 | 作用 |
-| --- | --- | --- |
-| `/music upload <名称>` | `musicmc.upload` | 创建一次性上传链接；名称不写音频扩展名 |
-| `/music list [页码]` | 无 | 查看已发布歌曲 |
-| `/music status` | 无 | 查看目录和待处理上传状态 |
-| `/music pack` | 无 | 重新发送当前资源包 |
-| `/music sync` | `musicmc.admin` | 立即同步歌曲目录 |
-| `/getcd <名称>` | `musicmc.getcd` | 获取唱片并自动补全歌曲名称 |
+```text
+/music
+/music upload <命令名称>
+/music netease <网易云歌曲ID> <命令名称>
+/music search <关键词>
+/music list [页码]
+/music status
+/music cancel
+/music pack
+/getcd <命令名称>
+```
 
-玩家教程提供 [English](docs/PLAYER_GUIDE.md) 和[简体中文](docs/PLAYER_GUIDE.zh-CN.md)版本。
+完整说明见[玩家指南](docs/PLAYER_GUIDE.zh-CN.md)。
+管理员另见[管理员指南](docs/ADMIN_GUIDE.zh-CN.md)。
 
-## 自动化安全
+## 构建
 
-- `CI` 会在 push 和 pull request 时测试代码，但不会创建外部服务。
-- `Deploy upload portal` 和 `Deploy upload Worker` 只能手动运行。
-- `Process music submission` 只有在已配置服务创建符合格式的 Issue 后才运行。
-- `Release plugin` 只有管理员显式推送 `v*` 标签后才运行。
+```bash
+./mvnw --batch-mode clean verify
+```
+
+打包结果为 `target/MusicMC-2.0.0.jar`。
+
+## 部署
+
+从[部署指南](docs/DEPLOYMENT.zh-CN.md)开始。仓库已经包含插件、投稿网页、Worker、Actions 处理脚本、目录格式、测试和初始化脚本，不写死任何生产网址、个人服务器、FRP 隧道、私钥、Cookie 或访问令牌。
+
+## 已知限制
+
+- 不安装客户端 Mod 时，后来进入范围的玩家只能从下一音频片段加入，不能从任意采样位置开始。
+- 网易云接入并非官方开放接口；Cookie 过期、账号没有播放权限或 GitHub Runner 触发风控时会失败。
+- 投稿和下载仍受 GitHub 或所选对象存储的配额限制。
 
 ## 许可证
 
-MusicMC 使用 [MIT License 英文法律文本](LICENSE)，并提供[非官方中文参考译文](LICENSE.zh-CN.md)。
+MIT，见 [LICENSE](LICENSE) 和 [LICENSE.zh-CN.md](LICENSE.zh-CN.md)。

@@ -7,6 +7,8 @@ param(
     [string]$UploadApiUrl = "",
     [string]$PrivateKeyPath = ".local/upload-ticket-private.pem",
     [string]$PublicKeyPath = "github-upload-service/config/upload-ticket-public.pem",
+    [string]$PublicKeyRegistryPath = "github-upload-service/config/upload-ticket-public-keys.json",
+    [string]$UploadKeyId = "default",
     [switch]$RotateUploadKey
 )
 
@@ -88,6 +90,13 @@ if ($PagesOrigin -notmatch '^https://[^/]+$' -or $PortalUrl -notmatch '^https://
 
 $privateFullPath = [IO.Path]::GetFullPath((Join-Path $Root $PrivateKeyPath))
 $publicFullPath = [IO.Path]::GetFullPath((Join-Path $Root $PublicKeyPath))
+$registryFullPath = [IO.Path]::GetFullPath((Join-Path $Root $PublicKeyRegistryPath))
+if ($RotateUploadKey -and $UploadKeyId -eq "default") {
+    $UploadKeyId = "key-$(Get-Date -AsUTC -Format 'yyyyMMddHHmmss')"
+}
+if ($UploadKeyId -notmatch '^[A-Za-z0-9_-]{1,32}$') {
+    throw "UploadKeyId must contain only letters, numbers, underscores, or hyphens."
+}
 $keyArguments = @($privateFullPath, $publicFullPath)
 if ($RotateUploadKey -or ((Test-Path -LiteralPath $publicFullPath) -and -not (Test-Path -LiteralPath $privateFullPath))) {
     $keyArguments += "--force"
@@ -98,9 +107,15 @@ if ($RotateUploadKey -or -not (Test-Path -LiteralPath $privateFullPath) -or -not
         throw "Failed to generate the upload signing key pair."
     }
 }
+& node (Join-Path $Root "scripts/update-public-key-registry.mjs") `
+    $registryFullPath $UploadKeyId $publicFullPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to update the upload public-key registry."
+}
 
 $githubToken = ""
 $cloudflareToken = ""
+$neteaseCookie = ""
 try {
     $githubToken = ConvertFrom-Secure (Read-Host "GitHub fine-grained token (Contents and Issues: read/write)" -AsSecureString)
     if (-not $githubToken) {
@@ -111,6 +126,7 @@ try {
     if (-not $cloudflareAccountId -or -not $cloudflareToken) {
         throw "Cloudflare Account ID and API token are required for automatic Worker deployment."
     }
+    $neteaseCookie = ConvertFrom-Secure (Read-Host "NetEase Music Cookie (optional; Enter to skip)" -AsSecureString)
 
     & npx wrangler whoami
     if ($LASTEXITCODE -ne 0) {
@@ -128,8 +144,9 @@ try {
         }
         $deployLines = & npx wrangler deploy --name $WorkerName `
             --var "ALLOWED_ORIGIN:$PagesOrigin" `
-            --var "GITHUB_REPOSITORY:$Repository" `
-            --var "GITHUB_BRANCH:main" 2>&1
+          --var "GITHUB_REPOSITORY:$Repository" `
+          --var "GITHUB_BRANCH:main" `
+          --var "MAX_PENDING_UPLOADS:50" 2>&1
         $deployLines | ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -ne 0) {
             throw "Worker deployment failed."
@@ -142,6 +159,11 @@ try {
             & npx wrangler secret put UPLOAD_PUBLIC_KEY --name $WorkerName
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to set Worker secret UPLOAD_PUBLIC_KEY."
+        }
+        (Get-Content -LiteralPath $registryFullPath -Raw -Encoding utf8) |
+            & npx wrangler secret put UPLOAD_PUBLIC_KEYS --name $WorkerName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to set Worker secret UPLOAD_PUBLIC_KEYS."
         }
     }
     finally {
@@ -161,6 +183,9 @@ try {
     Set-RepositorySecret "MUSICMC_AUTOMATION_TOKEN" $githubToken
     Set-RepositorySecret "CLOUDFLARE_API_TOKEN" $cloudflareToken
     Set-RepositorySecret "CLOUDFLARE_ACCOUNT_ID" $cloudflareAccountId
+    if ($neteaseCookie) {
+        Set-RepositorySecret "NETEASE_COOKIE" $neteaseCookie
+    }
     Set-RepositoryVariable "MUSICMC_WORKER_NAME" $WorkerName
     Set-RepositoryVariable "MUSICMC_UPLOAD_API_URL" $UploadApiUrl
     Set-RepositoryVariable "MUSICMC_PAGES_ORIGIN" $PagesOrigin
@@ -170,7 +195,7 @@ try {
         @{ Name = "music-pending"; Color = "d4c5f9"; Description = "Music upload waiting for processing" },
         @{ Name = "music-processing"; Color = "fbca04"; Description = "Music upload is being processed" },
         @{ Name = "music-ready"; Color = "0e8a16"; Description = "Music upload was published" },
-        @{ Name = "music-rejected"; Color = "d93f0b"; Description = "Music upload was rejected" }
+        @{ Name = "music-failed"; Color = "d93f0b"; Description = "Automatic music processing failed" }
     )
     foreach ($label in $labels) {
         & gh label create $label.Name --repo $Repository --color $label.Color --description $label.Description --force
@@ -187,7 +212,7 @@ try {
         }
     }
 
-    & git add -- $PublicKeyPath
+    & git add -- $PublicKeyPath $PublicKeyRegistryPath
     & git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
         & git commit -m "Configure MusicMC upload public key"
@@ -210,8 +235,10 @@ try {
     Write-Host "Portal:     $PortalUrl"
     Write-Host "Upload API: $UploadApiUrl"
     Write-Host "Private key (copy only to plugins/MusicMC/upload-ticket-private.pem): $privateFullPath"
+    Write-Host "Set upload.key-id in plugins/MusicMC/config.yml to: $UploadKeyId"
 }
 finally {
     $githubToken = $null
     $cloudflareToken = $null
+    $neteaseCookie = $null
 }

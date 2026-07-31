@@ -2,83 +2,54 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-MusicMC is a self-hosted custom music-disc system for Spigot 1.21.11. It combines a Java plugin, a static upload portal, a Cloudflare Worker, and GitHub Actions that validate audio, build resource packs, publish immutable song releases, and update a public catalog.
+MusicMC is an open-source Spigot 1.21.11 plugin and GitHub automation stack for custom music discs. Players can submit a ZIP or a NetEase Cloud Music song ID, GitHub Actions validates and segments the audio, and the server distributes small resource bundles on demand.
 
-This repository is a deployment template. It contains no live service URL, production song catalog, private key, personal access token, or enabled Pages deployment. Deployment workflows are manual until an administrator explicitly configures a fork.
+## What it does
 
-## Features
-
-- `/music upload <name>` creates a short-lived P-256 signed upload link.
-- Players upload one supported audio file inside `<name>.zip` without needing a GitHub account.
-- GitHub Actions validate and transcode MP3, M4A, AAC, WAV, FLAC, OGG, or OPUS audio.
-- `/getcd <name>` gives a custom disc and supports song-name completion.
-- Jukebox audio fades linearly to silence over 25 blocks by default.
-- Catalog synchronization retries GitHub API, Raw, jsDelivr, and configured download proxies.
-- There is no per-player upload count limit; duplicate names and reused tickets are rejected.
-
-## Repository layout
-
-```text
-src/                              Spigot plugin and tests
-github-upload-service/docs/       Static portal and song list
-github-upload-service/worker/     Cloudflare upload Worker
-github-upload-service/scripts/    Audio validation and publishing
-github-upload-service/config/     Replaceable ticket public key
-scripts/                           Bootstrap and security tools
-.github/workflows/                CI and manual deployment workflows
-catalog.json                      Empty public catalog template
-```
-
-## Build
-
-Java 21 is required.
-
-```powershell
-.\mvnw.cmd clean verify
-```
-
-On Linux or macOS:
-
-```bash
-./mvnw clean verify
-```
-
-The plugin is written to `target/MusicMC-1.0.0.jar`. The default artifact contains `OWNER/REPOSITORY` and `https://example.com/musicmc/` placeholders; configure your deployment before installing it on a production server.
-
-## Self-hosting
-
-Install Git, Java 21, Node.js 22, GitHub CLI, and Wrangler, then authenticate:
-
-```powershell
-gh auth login
-npx wrangler login
-.\scripts\bootstrap.ps1 -Repository OWNER/REPOSITORY
-```
-
-The bootstrap script generates a fresh signing key pair, deploys a Worker, writes repository-scoped Secrets and Variables, enables Pages, pushes the public key, and explicitly starts the manual Pages workflow. Nothing deploys merely because this source repository is cloned or updated.
-
-See [Deployment](docs/DEPLOYMENT.md), [Architecture](docs/ARCHITECTURE.md), and [Migration](docs/MIGRATION.md).
+- Runs on Spigot 1.21.11 with Java 21; it does not require Paper or a client mod.
+- Publishes submissions automatically with no manual approval stage.
+- Allows unlimited lifetime submissions while limiting each player to one active job.
+- Groups up to 20 songs per rolling resource bundle and loads only bundles a player needs.
+- Splits audio into roughly five-second segments so players entering the 25-block range can join at the next boundary.
+- Keeps only catalog metadata on the Minecraft server. Audio goes directly from GitHub Releases or an S3-compatible public endpoint to each client, never through FRP.
+- Supports local song disable/enable, uploader bans, song replacement, storage diagnostics, and an in-game song browser.
+- Supports a Cookie-backed NetEase adapter inside GitHub Actions. The Cookie is optional and remains a repository secret.
 
 ## Player commands
 
-| Command | Permission | Purpose |
-| --- | --- | --- |
-| `/music upload <name>` | `musicmc.upload` | Create a one-time upload link; omit the audio extension |
-| `/music list [page]` | none | List published songs |
-| `/music status` | none | Show catalog and pending-upload status |
-| `/music pack` | none | Re-send current resource packs |
-| `/music sync` | `musicmc.admin` | Synchronize the catalog immediately |
-| `/getcd <name>` | `musicmc.getcd` | Get a disc with song-name completion |
+```text
+/music
+/music upload <command name>
+/music netease <NetEase song ID> <command name>
+/music search <query>
+/music list [page]
+/music status
+/music cancel
+/music pack
+/getcd <command name>
+```
 
-The player guide is available in [English](docs/PLAYER_GUIDE.md) and [简体中文](docs/PLAYER_GUIDE.zh-CN.md).
+See [Player guide](docs/PLAYER_GUIDE.md) or [玩家指南](docs/PLAYER_GUIDE.zh-CN.md).
+Administrators should also read [Administrator guide](docs/ADMIN_GUIDE.md).
 
-## Automation safety
+## Build
 
-- `CI` runs on pushes and pull requests but creates no external service.
-- `Deploy upload portal` and `Deploy upload Worker` are manual-only workflows.
-- `Process music submission` runs only after a configured service creates a matching Issue.
-- `Release plugin` runs only when an administrator explicitly pushes a `v*` tag.
+```bash
+./mvnw --batch-mode clean verify
+```
+
+The shaded plugin is written to `target/MusicMC-2.0.0.jar`.
+
+## Deploy
+
+Start with [Deployment](docs/DEPLOYMENT.md) or [部署指南](docs/DEPLOYMENT.zh-CN.md). The repository contains the plugin, portal, Worker, Actions processors, catalog schema, tests, and bootstrap scripts. No production URL, personal server, FRP tunnel, private key, Cookie, or access token is hard-coded.
+
+## Limits
+
+- Without a client mod, a listener can join only at the next audio segment, not at an arbitrary sample position.
+- NetEase access is unofficial and can fail because a Cookie expires, an account lacks playback access, or risk controls reject a GitHub-hosted runner.
+- GitHub and object-storage quotas still apply to uploads and downloads.
 
 ## License
 
-MusicMC is released under the [MIT License](LICENSE). An [unofficial Chinese translation](LICENSE.zh-CN.md) is provided for reference.
+MIT. See [LICENSE](LICENSE) and [LICENSE.zh-CN.md](LICENSE.zh-CN.md).

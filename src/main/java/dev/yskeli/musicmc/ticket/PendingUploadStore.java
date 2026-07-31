@@ -45,8 +45,30 @@ public final class PendingUploadStore {
         return all().stream().filter(pending -> pending.playerUuid().equals(playerUuid)).toList();
     }
 
+    public synchronized boolean hasPendingPlayer(UUID playerUuid) {
+        return !forPlayer(playerUuid).isEmpty();
+    }
+
+    public synchronized int removeForPlayer(UUID playerUuid) {
+        ConfigurationSection section = yaml.getConfigurationSection("uploads");
+        if (section == null) {
+            return 0;
+        }
+        int removed = 0;
+        for (String nonce : new ArrayList<>(section.getKeys(false))) {
+            if (playerUuid.toString().equals(section.getString(nonce + ".player-uuid"))) {
+                yaml.set("uploads." + nonce, null);
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            save();
+        }
+        return removed;
+    }
+
     public synchronized void removePublished(List<Song> songs) {
-        List<String> publishedNames = songs.stream().map(Song::normalizedName).toList();
+        List<String> publishedNames = songs.stream().map(Song::normalizedCommandName).toList();
         ConfigurationSection section = yaml.getConfigurationSection("uploads");
         if (section == null) {
             return;

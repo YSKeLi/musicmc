@@ -44,6 +44,8 @@ jobs:
           npx wrangler deploy --name "$WORKER_NAME" \
             --var "ALLOWED_ORIGIN:$PAGES_ORIGIN" \
             --var "GITHUB_REPOSITORY:$GITHUB_REPOSITORY" \
-            --var "GITHUB_BRANCH:main"
+            --var "GITHUB_BRANCH:main" \
+            --var "MAX_PENDING_UPLOADS:50"
           printf '%s' "$MUSICMC_AUTOMATION_TOKEN" | npx wrangler secret put GITHUB_TOKEN --name "$WORKER_NAME"
           cat ../config/upload-ticket-public.pem | npx wrangler secret put UPLOAD_PUBLIC_KEY --name "$WORKER_NAME"
+          cat ../config/upload-ticket-public-keys.json | npx wrangler secret put UPLOAD_PUBLIC_KEYS --name "$WORKER_NAME"

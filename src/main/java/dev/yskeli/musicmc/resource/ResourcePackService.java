@@ -2,17 +2,20 @@ package dev.yskeli.musicmc.resource;
 
 import dev.yskeli.musicmc.config.PluginSettings;
 import dev.yskeli.musicmc.library.SongLibrary;
+import dev.yskeli.musicmc.model.ResourceBundle;
 import dev.yskeli.musicmc.model.Song;
 import dev.yskeli.musicmc.storage.DownloadUrlResolver;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -28,10 +31,12 @@ public final class ResourcePackService implements Listener {
     private final PluginSettings settings;
     private final SongLibrary library;
     private final DownloadUrlResolver downloadUrls;
-    private final Map<UUID, Song> songsByPackId = new HashMap<>();
+    private final Map<UUID, ResourceBundle> bundlesByPackId = new HashMap<>();
     private final Map<UUID, Set<UUID>> requestedByPlayer = new HashMap<>();
     private final Map<UUID, Set<UUID>> loadedByPlayer = new HashMap<>();
     private final Map<UUID, Map<UUID, Integer>> requestAttemptByPlayer = new HashMap<>();
+    private final Map<UUID, Map<String, UUID>> bundleVersionByPlayer = new HashMap<>();
+    private final List<BiConsumer<Player, ResourceBundle>> loadListeners = new ArrayList<>();
 
     public ResourcePackService(
             JavaPlugin plugin,
@@ -46,50 +51,75 @@ public final class ResourcePackService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> sendAll(event.getPlayer()), 20L);
+        clearPlayer(event.getPlayer());
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        requestedByPlayer.remove(event.getPlayer().getUniqueId());
-        loadedByPlayer.remove(event.getPlayer().getUniqueId());
-        requestAttemptByPlayer.remove(event.getPlayer().getUniqueId());
+        clearPlayer(event.getPlayer());
     }
 
     @EventHandler
     public void onResourcePackStatus(PlayerResourcePackStatusEvent event) {
         UUID packId = event.getID();
-        Song song = songsByPackId.get(packId);
-        if (song == null) {
+        ResourceBundle bundle = bundlesByPackId.get(packId);
+        if (bundle == null) {
+            return;
+        }
+        Set<UUID> requested = requestedByPlayer.getOrDefault(event.getPlayer().getUniqueId(), Set.of());
+        if (!requested.contains(packId)) {
             return;
         }
         String status = event.getStatus().name();
         if (status.equals("SUCCESSFULLY_LOADED")) {
             loadedByPlayer.computeIfAbsent(event.getPlayer().getUniqueId(), ignored -> new HashSet<>()).add(packId);
-        } else if (status.equals("DECLINED")) {
-            loadedByPlayer.computeIfAbsent(event.getPlayer().getUniqueId(), ignored -> new HashSet<>()).remove(packId);
-            event.getPlayer().sendMessage(ChatColor.RED + "歌曲资源包加载失败：" + song.displayName());
+            loadListeners.forEach(listener -> listener.accept(event.getPlayer(), bundle));
+        } else if (status.equals("DECLINED") || status.equals("DISCARDED")) {
+            markUnloaded(event.getPlayer(), packId);
+            event.getPlayer().sendMessage(ChatColor.RED + "歌曲资源包未加载：" + bundle.bundleId());
         } else if (status.startsWith("FAILED") || status.equals("INVALID_URL")) {
-            loadedByPlayer.computeIfAbsent(event.getPlayer().getUniqueId(), ignored -> new HashSet<>()).remove(packId);
+            markUnloaded(event.getPlayer(), packId);
             int currentAttempt = requestAttemptByPlayer
                     .getOrDefault(event.getPlayer().getUniqueId(), Map.of())
                     .getOrDefault(packId, 0);
-            if (sendPack(event.getPlayer(), song, packId, currentAttempt + 1)) {
-                event.getPlayer().sendMessage(ChatColor.YELLOW + "代理下载失败，正在尝试 GitHub 直连：" + song.displayName());
+            if (sendPack(event.getPlayer(), bundle, currentAttempt + 1)) {
+                event.getPlayer().sendMessage(ChatColor.YELLOW + "资源包下载失败，正在尝试备用地址："
+                        + bundle.bundleId());
                 return;
             }
-            event.getPlayer().sendMessage(ChatColor.RED + "歌曲资源包加载失败：" + song.displayName());
+            event.getPlayer().sendMessage(ChatColor.RED + "歌曲资源包加载失败：" + bundle.bundleId());
         }
     }
 
+    public void addLoadListener(BiConsumer<Player, ResourceBundle> listener) {
+        loadListeners.add(listener);
+    }
+
+    public boolean ensureLoaded(Player player, Song song) {
+        if (hasLoaded(player, song)) {
+            return true;
+        }
+        sendSong(player, song);
+        return false;
+    }
+
+    public boolean sendSong(Player player, Song song) {
+        ResourceBundle bundle = library.bundleFor(song).orElse(null);
+        return bundle != null && sendBundle(player, bundle);
+    }
+
     public void sendAll(Player player) {
-        send(player, library.songs());
+        Set<String> sent = new LinkedHashSet<>();
+        for (Song song : library.songs()) {
+            if (sent.add(song.bundleId())) {
+                sendSong(player, song);
+            }
+        }
     }
 
     public void resendAll(Player player) {
-        requestedByPlayer.remove(player.getUniqueId());
-        loadedByPlayer.remove(player.getUniqueId());
-        requestAttemptByPlayer.remove(player.getUniqueId());
+        removeSentPacks(player);
+        clearPlayer(player);
         sendAll(player);
     }
 
@@ -98,56 +128,82 @@ public final class ResourcePackService implements Listener {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            send(player, songs);
-            player.sendMessage(ChatColor.GREEN + "MusicMC 新增 " + songs.size() + " 首歌曲资源");
+            player.sendMessage(ChatColor.GREEN + "MusicMC 有 " + songs.size() + " 首歌曲新增或更新，可按需获取唱片。");
         }
     }
 
     public boolean hasLoaded(Player player, Song song) {
-        return loadedByPlayer
-                .getOrDefault(player.getUniqueId(), Set.of())
-                .contains(packId(song));
+        return library.bundleFor(song)
+                .map(ResourceBundle::uuid)
+                .map(packId -> loadedByPlayer.getOrDefault(player.getUniqueId(), Set.of()).contains(packId))
+                .orElse(false);
     }
 
-    private void send(Player player, List<Song> songs) {
-        Set<UUID> requested = requestedByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> new HashSet<>());
-        for (Song song : songs) {
-            UUID packId = packId(song);
-            songsByPackId.put(packId, song);
-            if (!requested.add(packId)) {
-                continue;
+    private boolean sendBundle(Player player, ResourceBundle bundle) {
+        UUID packId = bundle.uuid();
+        bundlesByPackId.put(packId, bundle);
+        Map<String, UUID> versions = bundleVersionByPlayer
+                .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>());
+        UUID oldPackId = versions.put(bundle.bundleId(), packId);
+        if (oldPackId != null && !oldPackId.equals(packId)) {
+            player.removeResourcePack(oldPackId);
+            Set<UUID> requestedVersions = requestedByPlayer.get(player.getUniqueId());
+            Set<UUID> loadedVersions = loadedByPlayer.get(player.getUniqueId());
+            if (requestedVersions != null) {
+                requestedVersions.remove(oldPackId);
             }
-            if (!sendPack(player, song, packId, 0)) {
-                requested.remove(packId);
-                player.sendMessage(ChatColor.RED + "无法发送歌曲资源包：" + song.displayName());
+            if (loadedVersions != null) {
+                loadedVersions.remove(oldPackId);
             }
         }
+        Set<UUID> requested = requestedByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> new HashSet<>());
+        if (!requested.add(packId)) {
+            return true;
+        }
+        if (sendPack(player, bundle, 0)) {
+            return true;
+        }
+        requested.remove(packId);
+        player.sendMessage(ChatColor.RED + "无法发送歌曲资源包：" + bundle.bundleId());
+        return false;
     }
 
-    private boolean sendPack(Player player, Song song, UUID packId, int startAttempt) {
-        List<URI> candidates = downloadUrls.candidates(song.packUrl());
+    private boolean sendPack(Player player, ResourceBundle bundle, int startAttempt) {
+        List<URI> candidates = downloadUrls.candidates(bundle.packUrl());
         for (int attempt = startAttempt; attempt < candidates.size(); attempt++) {
             try {
                 player.addResourcePack(
-                        packId,
+                        bundle.uuid(),
                         candidates.get(attempt).toASCIIString(),
-                        HexFormat.of().parseHex(song.packSha1()),
+                        HexFormat.of().parseHex(bundle.packSha1()),
                         settings.resourcePackPrompt(),
                         settings.forceResourcePacks());
                 requestAttemptByPlayer
                         .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
-                        .put(packId, attempt);
+                        .put(bundle.uuid(), attempt);
                 return true;
             } catch (IllegalArgumentException exception) {
-                plugin.getLogger().warning("Could not send resource pack URL for "
-                        + song.songId() + ": " + exception.getMessage());
+                plugin.getLogger().warning("Could not send resource bundle "
+                        + bundle.bundleId() + ": " + exception.getMessage());
             }
         }
         return false;
     }
 
-    public static UUID packId(Song song) {
-        String value = "musicmc:" + song.songId() + ':' + song.packSha1();
-        return UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8));
+    private void removeSentPacks(Player player) {
+        for (UUID packId : bundleVersionByPlayer.getOrDefault(player.getUniqueId(), Map.of()).values()) {
+            player.removeResourcePack(packId);
+        }
+    }
+
+    private void markUnloaded(Player player, UUID packId) {
+        loadedByPlayer.computeIfAbsent(player.getUniqueId(), ignored -> new HashSet<>()).remove(packId);
+    }
+
+    private void clearPlayer(Player player) {
+        requestedByPlayer.remove(player.getUniqueId());
+        loadedByPlayer.remove(player.getUniqueId());
+        requestAttemptByPlayer.remove(player.getUniqueId());
+        bundleVersionByPlayer.remove(player.getUniqueId());
     }
 }

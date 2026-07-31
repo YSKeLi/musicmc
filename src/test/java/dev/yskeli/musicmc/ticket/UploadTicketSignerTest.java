@@ -22,7 +22,7 @@ class UploadTicketSignerTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
         generator.initialize(new ECGenParameterSpec("secp256r1"));
         KeyPair keyPair = generator.generateKeyPair();
-        UploadTicketSigner signer = new UploadTicketSigner(keyPair.getPrivate(), Duration.ofMinutes(15));
+        UploadTicketSigner signer = new UploadTicketSigner(keyPair.getPrivate(), Duration.ofMinutes(15), "key-2026");
         UUID playerId = UUID.randomUUID();
 
         UploadTicket ticket = signer.create(playerId, "TestPlayer", "夜曲");
@@ -39,6 +39,7 @@ class UploadTicketSignerTest {
 
         JsonObject json = JsonParser.parseString(new String(payload, StandardCharsets.UTF_8)).getAsJsonObject();
         assertEquals(1, json.get("v").getAsInt());
+        assertEquals("key-2026", json.get("key_id").getAsString());
         assertEquals(playerId.toString(), json.get("player_uuid").getAsString());
         assertEquals("TestPlayer", json.get("player_name").getAsString());
         assertEquals("夜曲", json.get("song_name").getAsString());

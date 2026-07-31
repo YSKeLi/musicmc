@@ -18,9 +18,8 @@ class SongNamesTest {
     }
 
     @Test
-    void rejectsNamesThatCannotBeUsedAsZipFileNames() {
-        assertThrows(IllegalArgumentException.class, () -> SongNames.validateDisplayName("bad/name"));
-        assertThrows(IllegalArgumentException.class, () -> SongNames.validateDisplayName("bad?name"));
-        assertThrows(IllegalArgumentException.class, () -> SongNames.validateDisplayName("song."));
+    void permitsNamesThatNoLongerNeedToBeZipFilenames() {
+        assertEquals("bad/name?", SongNames.validateDisplayName("bad/name?"));
+        assertEquals("song.", SongNames.validateDisplayName("song."));
     }
 }

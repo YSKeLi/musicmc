@@ -1,17 +1,14 @@
 package dev.yskeli.musicmc.catalog;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import dev.yskeli.musicmc.config.PluginSettings;
 import dev.yskeli.musicmc.library.SongLibrary;
 import dev.yskeli.musicmc.model.Song;
 import dev.yskeli.musicmc.model.SongCatalog;
+import dev.yskeli.musicmc.model.SongCatalogCodec;
 import dev.yskeli.musicmc.storage.HttpFileClient;
 import dev.yskeli.musicmc.storage.SongStorage;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,7 +27,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CatalogSyncService {
     private static final long MAX_CATALOG_BYTES = 5L * 1024 * 1024;
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     private final JavaPlugin plugin;
     private final PluginSettings settings;
@@ -66,10 +62,7 @@ public final class CatalogSyncService {
 
     public void loadCache() {
         try {
-            SongCatalog cached = storage.loadCachedCatalog();
-            List<Song> ready = cached.songs().stream().filter(storage::isReady).toList();
-            validateUnique(ready);
-            library.replace(ready);
+            library.replace(storage.loadCachedCatalog());
         } catch (Exception exception) {
             plugin.getLogger().log(Level.WARNING, "Could not load cached MusicMC catalog", exception);
         }
@@ -92,7 +85,7 @@ public final class CatalogSyncService {
             return false;
         }
         if (requester != null) {
-            requester.sendMessage(ChatColor.GRAY + "MusicMC 开始同步 GitHub 目录...");
+            requester.sendMessage(ChatColor.GRAY + "MusicMC 开始同步歌曲目录...");
         }
         try {
             currentSync = executor.submit(() -> synchronize(requester));
@@ -131,17 +124,12 @@ public final class CatalogSyncService {
             SongCatalog catalog = download.catalog();
             storage.saveCatalog(download.rawCatalog());
 
-            List<Song> ready = new ArrayList<>();
-            for (Song song : catalog.songs()) {
-                try {
-                    storage.materialize(song);
-                    ready.add(song);
-                } catch (Exception exception) {
-                    plugin.getLogger().log(Level.WARNING, "Could not store song " + song.songId(), exception);
-                }
-            }
-            Set<String> previousIds = library.songs().stream().map(Song::songId).collect(java.util.stream.Collectors.toSet());
-            List<Song> newSongs = ready.stream().filter(song -> !previousIds.contains(song.songId())).toList();
+            java.util.Map<String, Integer> previousRevisions = library.allSongs().stream()
+                    .collect(java.util.stream.Collectors.toMap(Song::songId, Song::revision));
+            List<Song> newSongs = catalog.songs().stream()
+                    .filter(Song::enabled)
+                    .filter(song -> song.revision() > previousRevisions.getOrDefault(song.songId(), 0))
+                    .toList();
 
             if (shuttingDown.get()) {
                 return;
@@ -150,10 +138,10 @@ public final class CatalogSyncService {
                 if (shuttingDown.get()) {
                     return;
                 }
-                library.replace(ready);
+                library.replace(catalog);
                 updateListener.accept(newSongs);
                 if (requester != null) {
-                    requester.sendMessage(ChatColor.GREEN + "MusicMC 同步完成：" + ready.size() + " 首可用歌曲");
+                    requester.sendMessage(ChatColor.GREEN + "MusicMC 同步完成：" + library.size() + " 首可用歌曲");
                 }
             });
         } catch (Exception exception) {
@@ -184,8 +172,7 @@ public final class CatalogSyncService {
                         ? "application/vnd.github.raw+json"
                         : "application/json";
                 String rawCatalog = http.getText(uri, MAX_CATALOG_BYTES, accept);
-                SongCatalog catalog = GSON.fromJson(rawCatalog, SongCatalog.class).validated();
-                validateUnique(catalog.songs());
+                SongCatalog catalog = SongCatalogCodec.parse(rawCatalog);
 
                 if (!endpoint.equals(preferredCatalogUrl)) {
                     plugin.getLogger().info("MusicMC catalog endpoint switched to " + uri.getHost());
@@ -221,17 +208,4 @@ public final class CatalogSyncService {
     }
 
     private record CatalogDownload(String rawCatalog, SongCatalog catalog) {}
-
-    private static void validateUnique(List<Song> songs) {
-        Set<String> ids = new HashSet<>();
-        Set<String> names = new HashSet<>();
-        for (Song song : songs) {
-            if (!ids.add(song.songId())) {
-                throw new IllegalArgumentException("Duplicate song ID: " + song.songId());
-            }
-            if (!names.add(song.normalizedName())) {
-                throw new IllegalArgumentException("Duplicate song name: " + song.displayName());
-            }
-        }
-    }
 }

@@ -1,11 +1,13 @@
 package dev.yskeli.musicmc;
 
+import dev.yskeli.musicmc.admin.AdminStateStore;
 import dev.yskeli.musicmc.catalog.CatalogSyncService;
 import dev.yskeli.musicmc.command.GetCdCommand;
 import dev.yskeli.musicmc.command.MusicCommand;
 import dev.yskeli.musicmc.config.PluginSettings;
 import dev.yskeli.musicmc.disc.DiscService;
 import dev.yskeli.musicmc.disc.JukeboxPlaybackService;
+import dev.yskeli.musicmc.gui.SongBrowserMenu;
 import dev.yskeli.musicmc.library.SongLibrary;
 import dev.yskeli.musicmc.resource.ResourcePackService;
 import dev.yskeli.musicmc.storage.HttpFileClient;
@@ -31,15 +33,19 @@ public final class MusicMCPlugin extends JavaPlugin {
         try {
             PluginSettings settings = PluginSettings.load(this);
             SongLibrary library = new SongLibrary();
+            AdminStateStore adminState = new AdminStateStore(this);
+            library.setLocallyDisabled(adminState.disabledSongIds());
             HttpFileClient http = new HttpFileClient(settings.connectTimeout(), settings.requestTimeout());
             DownloadUrlResolver downloadUrls = new DownloadUrlResolver(settings.downloadProxyPrefixes());
-            SongStorage storage = new SongStorage(getDataFolder().toPath(), http, downloadUrls);
+            SongStorage storage = new SongStorage(getDataFolder().toPath());
             PendingUploadStore pendingUploads = new PendingUploadStore(this);
             Optional<UploadTicketSigner> signer = loadSigner(settings);
 
             DiscService discs = new DiscService(this, library);
             ResourcePackService resourcePacks = new ResourcePackService(this, settings, library, downloadUrls);
-            playback = new JukeboxPlaybackService(this, discs, settings);
+            SongBrowserMenu browser = new SongBrowserMenu(
+                    this, library, discs, resourcePacks, pendingUploads);
+            playback = new JukeboxPlaybackService(this, discs, resourcePacks, settings);
             catalogSync = new CatalogSyncService(
                     this,
                     settings,
@@ -52,12 +58,13 @@ public final class MusicMCPlugin extends JavaPlugin {
                     });
 
             MusicCommand musicCommand = new MusicCommand(
-                    settings, library, pendingUploads, signer, catalogSync, resourcePacks);
+                    settings, library, pendingUploads, signer, catalogSync, resourcePacks, adminState, browser);
             GetCdCommand getCdCommand = new GetCdCommand(library, discs, resourcePacks);
             registerCommand("music", musicCommand, musicCommand);
             registerCommand("getcd", getCdCommand, getCdCommand);
             getServer().getPluginManager().registerEvents(resourcePacks, this);
             getServer().getPluginManager().registerEvents(playback, this);
+            getServer().getPluginManager().registerEvents(browser, this);
 
             catalogSync.loadCache();
             catalogSync.start();
@@ -87,7 +94,8 @@ public final class MusicMCPlugin extends JavaPlugin {
             return Optional.empty();
         }
         try {
-            return Optional.of(UploadTicketSigner.load(settings.privateKeyPath(), settings.ticketLifetime()));
+            return Optional.of(UploadTicketSigner.load(
+                    settings.privateKeyPath(), settings.ticketLifetime(), settings.uploadKeyId()));
         } catch (Exception exception) {
             getLogger().log(Level.SEVERE, "Could not load upload signing key; uploads are disabled", exception);
             return Optional.empty();

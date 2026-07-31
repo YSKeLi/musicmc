@@ -9,7 +9,7 @@ description: GitHub-backed custom music discs
 commands:
   music:
     description: Submit and synchronize songs
-    usage: /music <upload|list|status|pack|sync>
+    usage: /music <upload|netease|browse|search|list|status|cancel|pack|sync|admin>
   getcd:
     description: Get a custom music disc
     usage: /getcd <song name>

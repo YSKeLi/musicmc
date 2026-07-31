@@ -4,6 +4,7 @@ import {
   buildIssueBody,
   buildIssueUrl,
   readSubmissionParams,
+  submitNetEase,
   submitUpload,
   validateSubmission,
   validateZipFile,
@@ -13,21 +14,26 @@ const submission = {
   ticket: "MUS1.payload.signature",
   song: "晴天",
   player: "TestPlayer",
+  source: "upload",
+  providerId: "",
 };
 
-test("reads prefilled submission parameters", () => {
-  const url = "https://example.test/?ticket=MUS1.payload.signature&song=%E6%99%B4%E5%A4%A9&player=TestPlayer";
-  assert.deepEqual(readSubmissionParams(url), submission);
+test("reads prefilled upload and NetEase parameters", () => {
+  const uploadUrl = "https://example.test/?ticket=MUS1.payload.signature&song=%E6%99%B4%E5%A4%A9&player=TestPlayer";
+  assert.deepEqual(readSubmissionParams(uploadUrl), submission);
+  const netease = readSubmissionParams(`${uploadUrl}&source=netease&providerId=186016`);
+  assert.equal(netease.source, "netease");
+  assert.equal(netease.providerId, "186016");
 });
 
-test("builds the sections expected by the processor", () => {
+test("builds machine-stable processor sections", () => {
   const body = buildIssueBody(submission);
-  assert.match(body, /^### 上传凭证\n\nMUS1\.payload\.signature/m);
-  assert.match(body, /^### 歌曲名称\n\n晴天/m);
-  assert.match(body, /^### Minecraft 玩家名\n\nTestPlayer/m);
-  assert.match(body, /^### 音乐 ZIP 文件\n/m);
+  assert.match(body, /^### Upload ticket\n\nMUS1\.payload\.signature/m);
+  assert.match(body, /^### Song name\n\n晴天/m);
+  assert.match(body, /^### Minecraft player\n\nTestPlayer/m);
+  assert.match(body, /^### Source type\n\nupload/m);
+  assert.match(body, /^### Music ZIP file\n/m);
   assert.doesNotMatch(body, /- \[[ x]\]/i);
-  assert.ok(body.indexOf("### 音乐 ZIP 文件") > body.indexOf("### Minecraft 玩家名"));
 });
 
 test("creates a standard prefilled GitHub issue URL", () => {
@@ -35,34 +41,34 @@ test("creates a standard prefilled GitHub issue URL", () => {
   assert.equal(url.origin + url.pathname, "https://github.com/example/musicmc/issues/new");
   assert.equal(url.searchParams.get("title"), "[Music Upload] 晴天");
   assert.equal(url.searchParams.get("body"), buildIssueBody(submission));
-  assert.equal(url.searchParams.has("labels"), false);
 });
 
 test("rejects damaged links", () => {
-  assert.deepEqual(validateSubmission({ ticket: "bad", song: "", player: "x" }), [
-    "ticket",
-    "song",
-    "player",
-  ]);
-  assert.throws(() => buildIssueUrl({ ticket: "bad", song: "", player: "x" }));
+  assert.deepEqual(validateSubmission({ ticket: "bad", song: "", player: "x", source: "bad", providerId: "" }),
+    ["ticket", "song", "player", "source"]);
+  assert.throws(() => buildIssueUrl({ ticket: "bad", song: "", player: "x", source: "upload" }));
   assert.throws(() => buildIssueUrl(submission, "https://example.test/issues/new"));
 });
 
-test("requires a ZIP named exactly after the song", () => {
-  assert.equal(validateZipFile({ name: "晴天.zip", size: 1024 }, "晴天"), "");
-  assert.match(validateZipFile({ name: "other.zip", size: 1024 }, "晴天"), /晴天\.zip/);
-  assert.match(validateZipFile({ name: "晴天.zip", size: 26 * 1024 * 1024 }, "晴天"), /25 MB/);
+test("accepts any ZIP filename and enforces only type and size", () => {
+  assert.equal(validateZipFile({ name: "任意名称.zip", size: 1024 }), "");
+  assert.match(validateZipFile({ name: "song.mp3", size: 1024 }), /\.zip/);
+  assert.match(validateZipFile({ name: "song.zip", size: 26 * 1024 * 1024 }), /25 MB/);
 });
 
-test("submits the ZIP directly to the configured API", async () => {
-  const file = { name: "晴天.zip", size: 1024, type: "application/zip" };
+test("submits ZIP and NetEase jobs to their API endpoints", async () => {
+  const file = { name: "任意名称.zip", size: 1024, type: "application/zip" };
   let request;
-  const result = await submitUpload("https://upload.example/", submission, file, async (url, init) => {
+  const fetchMock = async (url, init) => {
     request = { url, init };
     return Response.json({ issue_number: 12 }, { status: 201 });
-  });
+  };
+  await submitUpload("https://upload.example/", submission, file, fetchMock);
   assert.equal(request.url, "https://upload.example/upload");
-  assert.equal(request.init.headers["X-MusicMC-Filename"], encodeURIComponent("晴天.zip"));
-  assert.equal(request.init.body, file);
-  assert.equal(result.issue_number, 12);
+  assert.equal(request.init.headers["X-MusicMC-Filename"], encodeURIComponent("任意名称.zip"));
+
+  const netease = { ...submission, source: "netease", providerId: "186016" };
+  await submitNetEase("https://upload.example/", netease, fetchMock);
+  assert.equal(request.url, "https://upload.example/netease");
+  assert.deepEqual(JSON.parse(request.init.body), { song_id: "186016" });
 });

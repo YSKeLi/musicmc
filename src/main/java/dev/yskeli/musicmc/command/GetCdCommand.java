@@ -39,41 +39,35 @@ public final class GetCdCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(ChatColor.YELLOW + "用法: /getcd <歌曲名称>");
+            player.sendMessage(ChatColor.YELLOW + "用法: /getcd <歌曲命令名称>");
             return true;
         }
         String requestedName = String.join(" ", args);
         Song song = library.findByName(requestedName).orElse(null);
         if (song == null) {
-            player.sendMessage(ChatColor.RED + "没有找到歌曲 “" + requestedName + "”，可用 /music list 查看。");
+            player.sendMessage(ChatColor.RED + "没有找到歌曲“" + requestedName + "”，可使用 /music 查看。");
             return true;
         }
-
-        ItemStack disc = discs.createDisc(song);
-        Map<Integer, ItemStack> overflow = player.getInventory().addItem(disc);
+        Map<Integer, ItemStack> overflow = player.getInventory().addItem(discs.createDisc(song));
         overflow.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
-        resourcePacks.sendAll(player);
-        player.sendMessage(ChatColor.GREEN + "已获得唱片: " + ChatColor.AQUA + song.displayName());
+        resourcePacks.sendSong(player, song);
+        player.sendMessage(ChatColor.GREEN + "已获得唱片: " + ChatColor.AQUA + song.displayLabel());
         if (!resourcePacks.hasLoaded(player, song)) {
-            player.sendMessage(ChatColor.YELLOW + "这首歌的资源包仍在加载；加载完成后再放入唱片机。");
+            player.sendMessage(ChatColor.YELLOW + "资源包正在加载；完成后再把唱片放入唱片机。");
         }
         return true;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!sender.hasPermission("musicmc.getcd")) {
-            return List.of();
-        }
+        if (!sender.hasPermission("musicmc.getcd")) return List.of();
         String entered = String.join(" ", args);
         String normalized = SongNames.normalize(entered);
         int lastSpace = entered.lastIndexOf(' ');
-        return library.songs().stream()
-                .map(Song::displayName)
+        return library.songs().stream().map(Song::commandName)
                 .filter(name -> SongNames.normalize(name).startsWith(normalized))
                 .sorted(Comparator.comparing(value -> value.toLowerCase(Locale.ROOT)))
                 .map(name -> lastSpace < 0 ? name : name.substring(Math.min(lastSpace + 1, name.length())))
-                .distinct()
-                .toList();
+                .distinct().toList();
     }
 }

@@ -1,10 +1,4 @@
-import {
-  CATALOG_URLS,
-  commandForSong,
-  filterSongs,
-  formatDuration,
-  parseCatalog,
-} from "./catalog.mjs";
+import { CATALOG_URLS, commandForSong, filterSongs, formatDuration, parseCatalog } from "./catalog.mjs";
 
 const searchInput = document.querySelector("#song-search");
 const songList = document.querySelector("#song-list");
@@ -23,27 +17,25 @@ function createSongButton(song) {
   const button = document.createElement("button");
   button.className = "song-row";
   button.type = "button";
-  button.dataset.songName = song.displayName;
-  button.setAttribute("aria-label", `复制 ${commandForSong(song.displayName)}`);
-
+  button.setAttribute("aria-label", `复制 ${commandForSong(song.commandName)}`);
   const identity = document.createElement("span");
   identity.className = "song-identity";
   const name = document.createElement("strong");
-  name.textContent = song.displayName;
+  name.textContent = song.artist ? `${song.displayName} - ${song.artist}` : song.displayName;
   const meta = document.createElement("small");
   const duration = formatDuration(song.durationSeconds);
-  meta.textContent = [song.uploader && `上传者 ${song.uploader}`, duration].filter(Boolean).join(" · ");
+  const source = song.sourceKind === "netease" ? "网易云" : "玩家上传";
+  meta.textContent = [source, song.uploader && `上传者 ${song.uploader}`, duration].filter(Boolean).join(" · ");
   identity.append(name, meta);
-
   const command = document.createElement("code");
-  command.textContent = commandForSong(song.displayName);
+  command.textContent = commandForSong(song.commandName);
   button.append(identity, command);
-  button.addEventListener("click", () => copyCommand(button, song.displayName));
+  button.addEventListener("click", () => copyCommand(button, song.commandName));
   return button;
 }
 
-async function copyCommand(button, songName) {
-  const command = commandForSong(songName);
+async function copyCommand(button, commandName) {
+  const command = commandForSong(commandName);
   try {
     await writeClipboard(command);
     button.classList.add("copied");
@@ -67,9 +59,7 @@ async function writeClipboard(text) {
   textarea.select();
   const copied = document.execCommand("copy");
   textarea.remove();
-  if (!copied) {
-    throw new Error("Clipboard unavailable");
-  }
+  if (!copied) throw new Error("Clipboard unavailable");
 }
 
 async function loadCatalog() {
@@ -77,9 +67,7 @@ async function loadCatalog() {
   for (const url of CATALOG_URLS) {
     try {
       const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       songs = parseCatalog(await response.json());
       render();
       return;

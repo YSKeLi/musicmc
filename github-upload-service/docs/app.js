@@ -1,6 +1,7 @@
 import {
   buildIssueUrl,
   readSubmissionParams,
+  submitNetEase,
   submitUpload,
   validateSubmission,
   validateZipFile,
@@ -9,29 +10,29 @@ import {
 const submission = readSubmissionParams(window.location.href);
 const errors = validateSubmission(submission);
 const form = document.querySelector("#submission-form");
-const songInput = document.querySelector("#song-name");
-const playerInput = document.querySelector("#player-name");
-const ticketInput = document.querySelector("#upload-ticket");
 const continueButton = document.querySelector("#continue-button");
 const status = document.querySelector("#link-status");
 const errorNotice = document.querySelector("#link-error");
 const uploadField = document.querySelector("#upload-field");
+const neteaseField = document.querySelector("#netease-field");
 const fileInput = document.querySelector("#music-zip");
-const filenameHint = document.querySelector("#filename-hint");
 const actionHint = document.querySelector("#action-hint");
 const uploadError = document.querySelector("#upload-error");
 const uploadSuccess = document.querySelector("#upload-success");
 const configuredApi = window.MUSICMC_CONFIG?.uploadApiUrl?.trim() || "";
 const configuredIssueUrl = window.MUSICMC_CONFIG?.issueUrl?.trim() || "";
 
-songInput.value = submission.song;
-playerInput.value = submission.player;
-ticketInput.value = submission.ticket;
+document.querySelector("#song-name").value = submission.song;
+document.querySelector("#player-name").value = submission.player;
+document.querySelector("#upload-ticket").value = submission.ticket;
+document.querySelector("#source-name").value = submission.source === "netease" ? "网易云音乐" : "ZIP 文件";
+document.querySelector("#netease-id").value = submission.providerId;
+uploadField.hidden = submission.source !== "upload";
+neteaseField.hidden = submission.source !== "netease";
 
 if (errors.length === 0) {
   status.textContent = "凭证已载入";
   status.classList.add("ready");
-  filenameHint.textContent = `请选择 ${submission.song}.zip`;
 } else {
   status.textContent = "链接无效";
   status.classList.add("error");
@@ -39,50 +40,48 @@ if (errors.length === 0) {
 }
 
 if (configuredApi) {
-  actionHint.textContent = "选择文件后由 MusicMC 自动提交";
-  fileInput.addEventListener("change", updateFileState);
-  updateFileState();
-} else {
-  uploadField.hidden = true;
-  if (configuredIssueUrl) {
-    actionHint.textContent = "下一步在 GitHub 添加 ZIP 附件";
-    continueButton.textContent = "继续到 GitHub";
-    continueButton.disabled = errors.length > 0;
-  } else {
-    actionHint.textContent = "上传服务尚未配置";
-    continueButton.textContent = "暂不可用";
-    continueButton.disabled = true;
+  actionHint.textContent = submission.source === "netease"
+    ? "由服务器队列获取并处理网易云音频"
+    : "文件名不限，MusicMC 会自动规范化";
+  if (submission.source === "upload") {
+    fileInput.addEventListener("change", updateFileState);
   }
+  updateFileState();
+} else if (configuredIssueUrl) {
+  actionHint.textContent = submission.source === "upload"
+    ? "下一步在 GitHub 的“Music ZIP file”下方添加 ZIP"
+    : "下一步由 GitHub 创建自动处理任务";
+  continueButton.textContent = "继续到 GitHub";
+  continueButton.disabled = errors.length > 0;
+} else {
+  actionHint.textContent = "投稿服务尚未配置";
+  continueButton.textContent = "暂不可用";
+  continueButton.disabled = true;
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (errors.length > 0) {
-    return;
-  }
+  if (errors.length > 0) return;
   if (!configuredApi) {
     continueButton.disabled = true;
     continueButton.textContent = "正在打开 GitHub";
     window.location.assign(buildIssueUrl(submission, configuredIssueUrl));
     return;
   }
-
-  const file = fileInput.files[0];
-  const fileError = validateZipFile(file, submission.song);
-  if (fileError) {
-    showUploadError(fileError);
-    return;
+  if (submission.source === "upload") {
+    const fileError = validateZipFile(fileInput.files[0]);
+    if (fileError) return showUploadError(fileError);
   }
   continueButton.disabled = true;
-  continueButton.textContent = "正在上传";
-  actionHint.textContent = "正在上传，请勿关闭页面";
+  continueButton.textContent = "正在提交";
+  actionHint.textContent = "正在进入处理队列，请勿关闭页面";
   uploadError.hidden = true;
   try {
-    const result = await submitUpload(configuredApi, submission, file);
+    const result = submission.source === "netease"
+      ? await submitNetEase(configuredApi, submission)
+      : await submitUpload(configuredApi, submission, fileInput.files[0]);
     status.textContent = "提交成功";
-    uploadSuccess.replaceChildren(
-      document.createTextNode(`歌曲“${submission.song}”已进入处理队列。`),
-    );
+    uploadSuccess.replaceChildren(document.createTextNode(`歌曲“${submission.song}”已进入自动处理队列。`));
     if (result.issue_url) {
       const issueLink = document.createElement("a");
       issueLink.href = result.issue_url;
@@ -90,7 +89,7 @@ form.addEventListener("submit", async (event) => {
       uploadSuccess.append(issueLink);
     }
     uploadSuccess.hidden = false;
-    actionHint.textContent = "服务器处理完成后即可使用 /getcd 获取";
+    actionHint.textContent = "处理完成并同步后即可使用 /getcd 获取";
     continueButton.textContent = "已提交";
     fileInput.disabled = true;
   } catch (error) {
@@ -102,13 +101,10 @@ form.addEventListener("submit", async (event) => {
 });
 
 function updateFileState() {
-  const fileError = validateZipFile(fileInput.files[0], submission.song);
+  const fileError = submission.source === "upload" ? validateZipFile(fileInput.files[0]) : "";
   continueButton.disabled = errors.length > 0 || Boolean(fileError);
-  if (fileInput.files.length > 0 && fileError) {
-    showUploadError(fileError);
-  } else {
-    uploadError.hidden = true;
-  }
+  if (fileInput.files.length > 0 && fileError) showUploadError(fileError);
+  else uploadError.hidden = true;
 }
 
 function showUploadError(message) {

@@ -1,29 +1,17 @@
-# 迁移到 MusicMC 单仓库
+# 迁移到 MusicMC 2
 
 [English](MIGRATION.md) | [简体中文](MIGRATION.zh-CN.md)
 
-单仓库同时保存插件、网页、Worker、Actions 和根目录 `catalog.json`。源码模板不包含任何生产目录或服务 URL；迁移数据必须由部署者从自己的旧系统导入。
+1. 备份仓库、`plugins/MusicMC` 和旧插件 JAR。
+2. 停止服务器，不要用 `/reload` 升级。
+3. 替换 JAR，并合并新 `config.yml`，特别是 `upload.key-id`。
+4. 部署新版 Worker 和 Pages 工作流。
+5. 启动服务器，由管理员执行 `/music sync`。
 
-## 必须变更
+Java 插件能读取目录 v1，并在内存中迁移到 v2；下一次成功发布时，发布脚本也会把 v1 写成 v2。旧唱片继续有效，因为物品中的 `song_id` 保持不变；旧 `pack_sha1` 标签会被忽略。
 
-1. 从旧部署复制最新 `catalog.json`，或者从空目录开始。
-2. 创建只授权新自托管仓库的 GitHub Fine-grained PAT。
-3. 将 Worker 的 `GITHUB_REPOSITORY` 改为新仓库的 `OWNER/REPOSITORY`。
-4. 生成新的 P-256 密钥，并同步更新服务器私钥、仓库公钥和 Worker `UPLOAD_PUBLIC_KEY`。
-5. 设置新仓库的 Actions Secrets、Variables 和 Issue 标签。
-6. 由管理员手动运行 Pages 和 Worker 部署工作流。
-7. 使用新仓库和网页参数重新构建插件。
+MusicMC 2 不再把资源包、源 ZIP 或解压后的 OGG 下载到 `plugins/MusicMC/songs`。完成备份并确认新目录和至少一张旧唱片正常后，旧目录才可以自行归档或清理；验证之前不要删除。
 
-## 旧歌曲
+命令名称不再需要满足 Windows ZIP 文件名规则，ZIP 文件名也不需要和命令一致。仍建议使用 `/music upload abc`，不要添加音频后缀。
 
-旧目录中的绝对 `pack_url`、`manifest_url` 和 `source_archive_url` 可以继续指向旧 Release。迁移完成并验证全部校验值之前，不要删除旧资产。希望完全脱离旧仓库时，应先复制 Release 资产，再更新 URL 和哈希。
-
-## 推荐顺序
-
-1. 创建新的公开 fork，但不要启用任何部署；
-2. 导入目录并生成新密钥；
-3. 配置仓库 Secrets、Variables 和标签；
-4. 手动部署 Worker 和 Pages；
-5. 构建并安装 Spigot 插件；
-6. 使用短音频完成一次端到端测试；
-7. 确认 Release、目录提交、服务器同步和 `/getcd` 全部成功后再停用旧服务。
+目录 v2 新增 `bundles`、歌曲 `revision`、`command_name`、`enabled`、分片声音和结构化来源信息。替换歌曲会保留 ID 并递增版本。

@@ -2,49 +2,45 @@
 
 [English](ARCHITECTURE.md) | [简体中文](ARCHITECTURE.zh-CN.md)
 
-## Components
+MusicMC is split into three layers: submission and validation, resource distribution, and synchronized playback.
 
 ```mermaid
 flowchart LR
-    Player["Minecraft player"] -->|/music upload| Plugin["Spigot plugin"]
-    Plugin -->|signed MUS1 ticket| Portal["GitHub Pages portal"]
-    Portal -->|ZIP + ticket| Worker["Cloudflare Worker"]
-    Worker -->|temporary Release + Issue| GitHub["GitHub repository"]
-    GitHub -->|Issue event| Actions["GitHub Actions + FFmpeg"]
-    Actions -->|resource pack Release + catalog commit| GitHub
-    Plugin -->|public catalog sync| GitHub
-    Plugin -->|resource pack| Player
+    Player["Minecraft player"] -->|"/music upload or netease"| Plugin["Spigot plugin"]
+    Plugin -->|"signed short-lived ticket"| Portal["GitHub Pages portal"]
+    Portal -->|"ZIP or song ID"| Worker["Cloudflare Worker"]
+    Worker -->|"temporary asset and Issue"| GitHub["GitHub repository"]
+    GitHub -->|"Issue event"| Actions["GitHub Actions"]
+    Actions -->|"validate, fetch, transcode, segment"| Bundler["rolling bundle builder"]
+    Bundler --> Storage["GitHub Release or S3-compatible storage"]
+    Bundler -->|"catalog v2 commit"| GitHub
+    Plugin -->|"public catalog only"| GitHub
+    Client["Minecraft client"] -->|"on-demand pack download"| Storage
+    Plugin -->|"segment clock and 25-block audience"| Client
 ```
 
-The repository is the durable state store. `catalog.json` is the only index the
-Minecraft plugin needs. Song packs and source archives are immutable GitHub
-Release assets.
+## Submission layer
 
-## Trust boundaries
+The server signs a 15-minute P-256 ticket bound to player UUID, player name, command name, nonce, and `key_id`. The Worker verifies it, enforces one active Issue per player and a global queue cap, then creates a `music-pending` Issue. Actions verifies the signature again. Successful validation publishes immediately; there is no approval state.
 
-- The Minecraft server owns a P-256 private key and signs short-lived tickets.
-- The matching public key is committed for Actions and installed as a Worker binding.
-- The upload page has no secret and cannot create arbitrary valid tickets.
-- The Worker owns a repository-scoped GitHub token and accepts requests only from the configured Pages origin.
-- Actions re-verifies every ticket before reading the ZIP or publishing a song.
-- ZIP paths, compression ratio, file count, extension, size and duration are validated before FFmpeg runs.
-- The plugin validates resource-pack SHA-1 and source-archive SHA-256 values from the catalog.
+ZIP submissions are streamed into a short-lived prerelease. NetEase submissions contain only a song ID; Actions invokes the pinned internal Node adapter with `NETEASE_COOKIE`. The adapter uses normal account playback access and does not expose the Cookie to the portal, Worker, plugin, catalog, or logs.
 
-## Submission states
+## Distribution layer
 
-```text
-music-pending -> music-processing -> music-ready
-                                 \-> music-rejected
-```
+Actions normalizes the source, creates OGG segments of about five seconds, and appends the song to a rolling bundle. A bundle is sealed at 20 songs or before it would exceed 95 MB. Each revision has a new pack UUID and SHA-1. The catalog points all affected songs to the latest revision.
 
-The Worker first creates a prerelease named `upload-<ticket nonce>` and uploads
-the ZIP as a fixed-length stream. It then creates the processing Issue. The
-workflow deletes the temporary release after success or rejection.
+The plugin persists only `catalog-cache.json` and administration metadata. Joining a server does not load all music. `/getcd` and nearby jukebox playback request only the required bundle. Clients download directly from the public asset URL, so audio traffic does not traverse the Minecraft server or FRP.
+
+## Playback layer
+
+The server tracks each active jukebox by song ID, location, start time, current segment, and audience. Every 10 ticks it removes players outside 25 blocks, requests missing packs for new listeners, and starts the next segment for loaded listeners. Audio is normalized for the 25-block packet radius and Minecraft performs positional linear attenuation.
+
+Vanilla clients cannot seek a resource-pack sound. A late listener therefore waits for the next segment instead of hearing from the exact current sample. Precise seamless seeking requires a client mod.
 
 ## Failure behavior
 
-- Catalog synchronization retains the last valid local catalog when all mirrors fail.
-- Resource-pack downloads try configured proxies and then direct GitHub URLs.
-- A failed upload never publishes a catalog entry.
-- Duplicate normalized song names and reused ticket nonces are rejected.
-- Worker requests without configuration, a matching CORS origin, valid length or valid signature fail closed.
+- A failed catalog fetch leaves the last valid cached catalog active.
+- Pack requests try configured proxy candidates and then the direct URL.
+- Failed processing never commits a catalog entry and marks the Issue `music-failed`.
+- Bundle and song versions use immutable asset paths; already cached content remains usable during an upstream outage.
+- Replacing a song retains its `song_id` and increments `revision`, so existing physical discs resolve to the new catalog entry.
