@@ -42,5 +42,6 @@ Vanilla clients cannot seek a resource-pack sound. A late listener therefore wai
 - A failed catalog fetch leaves the last valid cached catalog active.
 - Pack requests try configured proxy candidates and then the direct URL.
 - Failed processing never commits a catalog entry and marks the Issue `music-failed`.
+- NetEase tickets bind the provider ID directly. The page resolves title and artist only through the Worker's signed, fixed-upstream metadata endpoint; `NETEASE_COOKIE` remains confined to GitHub Actions Secrets.
 - Bundle and song versions use immutable asset paths; already cached content remains usable during an upstream outage.
 - Replacing a song retains its `song_id` and increments `revision`, so existing physical discs resolve to the new catalog entry.

@@ -14,7 +14,8 @@ export function readSubmissionParams(url) {
 export function validateSubmission(submission) {
   const errors = [];
   if (!submission.ticket.startsWith("MUS1.")) errors.push("ticket");
-  if (submission.song.length < 1 || submission.song.length > 48 || submission.song.includes("\n")) {
+  if (submission.source !== "netease"
+      && (submission.song.length < 1 || submission.song.length > 48 || submission.song.includes("\n"))) {
     errors.push("song");
   }
   if (!/^[A-Za-z0-9_]{3,16}$/.test(submission.player)) errors.push("player");
@@ -26,9 +27,10 @@ export function validateSubmission(submission) {
 }
 
 export function buildIssueBody(submission) {
+  const songName = submission.song || `netease-${submission.providerId}`;
   const lines = [
     "### Upload ticket", "", submission.ticket, "",
-    "### Song name", "", submission.song, "",
+    "### Song name", "", songName, "",
     "### Minecraft player", "", submission.player, "",
     "### Source type", "", submission.source, "",
   ];
@@ -79,6 +81,26 @@ export async function submitNetEase(apiUrl, submission, fetchImpl = fetch) {
   return submitApi(new URL("/netease", apiUrl), submission, {
     "Content-Type": "application/json",
   }, JSON.stringify({ song_id: submission.providerId }), fetchImpl);
+}
+
+export async function resolveNetEaseMetadata(apiUrl, submission, fetchImpl = fetch) {
+  if (!submission.ticket.startsWith("MUS1.")
+      || submission.source !== "netease"
+      || !/^[1-9][0-9]{0,19}$/.test(submission.providerId)) {
+    throw new Error("网易云歌曲查询链接无效。");
+  }
+  const response = await fetchImpl(new URL("/netease/metadata", apiUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-MusicMC-Ticket": submission.ticket,
+    },
+    body: JSON.stringify({ song_id: submission.providerId }),
+  });
+  let result = {};
+  try { result = await response.json(); } catch { /* HTTP status remains useful. */ }
+  if (!response.ok) throw new Error(result.error || `网易云歌曲查询失败（HTTP ${response.status}）。`);
+  return result;
 }
 
 async function submitApi(endpoint, submission, headers, body, fetchImpl) {

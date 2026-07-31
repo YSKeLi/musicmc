@@ -20,7 +20,8 @@ MusicMC is an open-source Spigot 1.21.11 plugin and GitHub automation stack for 
 ```text
 /music
 /music upload <command name>
-/music netease <NetEase song ID> <command name>
+/music netease <NetEase song ID>
+/music netease url <NetEase song URL>
 /music search <query>
 /music list [page]
 /music status
@@ -38,7 +39,7 @@ Administrators should also read [Administrator guide](docs/ADMIN_GUIDE.md).
 ./mvnw --batch-mode clean verify
 ```
 
-The shaded plugin is written to `target/MusicMC-2.0.0.jar`.
+The shaded plugin is written to `target/MusicMC-2.1.0.jar`.
 
 To build a JAR preconfigured for a particular deployment without changing tracked source files:
 

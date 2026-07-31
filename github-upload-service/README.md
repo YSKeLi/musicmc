@@ -13,7 +13,7 @@ config/     public signing keys only
 tests/      portal and Python tests
 ```
 
-The Worker accepts `/upload` for ZIP streams and `/netease` for JSON song IDs. It never serves music files. Actions processes every `music-pending` Issue automatically; no approval label is used.
+The Worker accepts `/upload` for ZIP streams, `/netease/metadata` for signed NetEase title/artist lookup, and `/netease` for JSON song IDs. Metadata requests are bound to a short-lived server-signed ticket and use a fixed upstream endpoint; the browser never receives the NetEase Cookie. The Worker never serves music files. Actions processes every `music-pending` Issue automatically; no approval label is used.
 
 Run tests from the repository root:
 

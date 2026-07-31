@@ -46,4 +46,22 @@ class UploadTicketSignerTest {
         assertEquals(ticket.nonce(), json.get("nonce").getAsString());
         assertTrue(ticket.expiresAt().isAfter(Instant.now().plus(Duration.ofMinutes(14))));
     }
+
+    @Test
+    void createsNetEaseTicketBoundToProviderIdWithoutPlayerSuppliedName() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp256r1"));
+        KeyPair keyPair = generator.generateKeyPair();
+        UploadTicketSigner signer = new UploadTicketSigner(keyPair.getPrivate(), Duration.ofMinutes(15));
+
+        UploadTicket ticket = signer.createNetEase(UUID.randomUUID(), "TestPlayer", "254132");
+        JsonObject json = JsonParser.parseString(new String(
+                Base64.getUrlDecoder().decode(ticket.encodedTicket().split("\\.")[1]),
+                StandardCharsets.UTF_8)).getAsJsonObject();
+
+        assertEquals(2, json.get("v").getAsInt());
+        assertEquals("netease", json.get("source").getAsString());
+        assertEquals("254132", json.get("provider_id").getAsString());
+        assertTrue(!json.has("song_name"));
+    }
 }

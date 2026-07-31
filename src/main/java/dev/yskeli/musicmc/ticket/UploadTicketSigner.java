@@ -59,35 +59,75 @@ public final class UploadTicketSigner {
     }
 
     public UploadTicket create(UUID playerUuid, String playerName, String songName) throws GeneralSecurityException {
-        return create(playerUuid, playerName, songName, null, 0);
+        return createUpload(playerUuid, playerName, songName, null, 0);
     }
 
     public UploadTicket createReplacement(
             UUID playerUuid, String playerName, String songName, String songId, int nextRevision)
             throws GeneralSecurityException {
-        return create(playerUuid, playerName, songName, songId, nextRevision);
+        return createUpload(playerUuid, playerName, songName, songId, nextRevision);
     }
 
-    private UploadTicket create(
+    public UploadTicket createNetEase(UUID playerUuid, String playerName, String providerId)
+            throws GeneralSecurityException {
+        return createNetEase(playerUuid, playerName, providerId, null, null, 0);
+    }
+
+    public UploadTicket createNetEaseReplacement(
+            UUID playerUuid, String playerName, String providerId, String songName, String songId, int nextRevision)
+            throws GeneralSecurityException {
+        return createNetEase(playerUuid, playerName, providerId, songName, songId, nextRevision);
+    }
+
+    private UploadTicket createUpload(
             UUID playerUuid, String playerName, String songName, String replacementSongId, int nextRevision)
             throws GeneralSecurityException {
+        JsonObject payload = commonPayload(1, playerUuid, playerName);
+        payload.addProperty("song_name", songName);
+        addReplacement(payload, replacementSongId, nextRevision);
+        return sign(payload);
+    }
+
+    private UploadTicket createNetEase(
+            UUID playerUuid, String playerName, String providerId, String songName,
+            String replacementSongId, int nextRevision) throws GeneralSecurityException {
+        if (providerId == null || !providerId.matches("[1-9][0-9]{0,19}")) {
+            throw new IllegalArgumentException("Invalid NetEase song ID");
+        }
+        JsonObject payload = commonPayload(2, playerUuid, playerName);
+        payload.addProperty("source", "netease");
+        payload.addProperty("provider_id", providerId);
+        if (songName != null) {
+            payload.addProperty("song_name", songName);
+        }
+        addReplacement(payload, replacementSongId, nextRevision);
+        return sign(payload);
+    }
+
+    private JsonObject commonPayload(int version, UUID playerUuid, String playerName) {
         byte[] nonceBytes = new byte[16];
         random.nextBytes(nonceBytes);
         String nonce = HexFormat.of().formatHex(nonceBytes);
         Instant expiresAt = Instant.now().plus(lifetime);
 
         JsonObject payload = new JsonObject();
-        payload.addProperty("v", 1);
+        payload.addProperty("v", version);
         payload.addProperty("key_id", keyId);
         payload.addProperty("player_uuid", playerUuid.toString());
         payload.addProperty("player_name", playerName);
-        payload.addProperty("song_name", songName);
         payload.addProperty("exp", expiresAt.getEpochSecond());
         payload.addProperty("nonce", nonce);
+        return payload;
+    }
+
+    private static void addReplacement(JsonObject payload, String replacementSongId, int nextRevision) {
         if (replacementSongId != null) {
             payload.addProperty("replace_song_id", replacementSongId);
             payload.addProperty("replace_revision", nextRevision);
         }
+    }
+
+    private UploadTicket sign(JsonObject payload) throws GeneralSecurityException {
         byte[] payloadBytes = GSON.toJson(payload).getBytes(StandardCharsets.UTF_8);
 
         Signature signature = Signature.getInstance("SHA256withECDSA");
@@ -96,6 +136,7 @@ public final class UploadTicketSigner {
         byte[] signed = signature.sign();
 
         String ticket = "MUS1." + BASE64_URL.encodeToString(payloadBytes) + "." + BASE64_URL.encodeToString(signed);
-        return new UploadTicket(ticket, nonce, expiresAt);
+        return new UploadTicket(ticket, payload.get("nonce").getAsString(),
+                Instant.ofEpochSecond(payload.get("exp").getAsLong()));
     }
 }

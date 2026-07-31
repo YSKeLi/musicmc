@@ -4,6 +4,7 @@ import {
   buildIssueBody,
   buildIssueUrl,
   readSubmissionParams,
+  resolveNetEaseMetadata,
   submitNetEase,
   submitUpload,
   validateSubmission,
@@ -24,6 +25,14 @@ test("reads prefilled upload and NetEase parameters", () => {
   const netease = readSubmissionParams(`${uploadUrl}&source=netease&providerId=186016`);
   assert.equal(netease.source, "netease");
   assert.equal(netease.providerId, "186016");
+});
+
+test("accepts a NetEase link without a prefilled song name", () => {
+  const value = {
+    ticket: "MUS1.payload.signature", song: "", player: "TestPlayer",
+    source: "netease", providerId: "254132",
+  };
+  assert.deepEqual(validateSubmission(value), []);
 });
 
 test("builds machine-stable processor sections", () => {
@@ -71,4 +80,21 @@ test("submits ZIP and NetEase jobs to their API endpoints", async () => {
   await submitNetEase("https://upload.example/", netease, fetchMock);
   assert.equal(request.url, "https://upload.example/netease");
   assert.deepEqual(JSON.parse(request.init.body), { song_id: "186016" });
+});
+
+test("resolves NetEase metadata through the signed Worker endpoint", async () => {
+  const netease = {
+    ticket: "MUS1.payload.signature", song: "", player: "TestPlayer",
+    source: "netease", providerId: "254132",
+  };
+  let request;
+  const result = await resolveNetEaseMetadata("https://upload.example/", netease, async (url, init) => {
+    request = { url: String(url), init };
+    return Response.json({
+      song_id: "254132", title: "会呼吸的痛", artist: "梁静茹", command_name: "会呼吸的痛-梁静茹",
+    });
+  });
+  assert.equal(request.url, "https://upload.example/netease/metadata");
+  assert.equal(request.init.headers["X-MusicMC-Ticket"], netease.ticket);
+  assert.equal(result.command_name, "会呼吸的痛-梁静茹");
 });

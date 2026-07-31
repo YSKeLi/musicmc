@@ -26,11 +26,12 @@ The ZIP filename no longer has to match the command name. MusicMC assigns a safe
 
 ## Submit a NetEase song
 
-1. Find the numeric song ID in a `music.163.com/song?id=...` link.
-2. Run `/music netease <ID> <command name>`.
-3. Open the signed link and submit the task. No local ZIP upload is needed.
+1. If you know the numeric song ID, run `/music netease <ID>`, for example `/music netease 254132`.
+2. If you have a complete URL, run `/music netease url <NetEase song URL>`, for example `/music netease url https://music.163.com/song?id=254132`.
+3. Open the signed link. The page uses a signed metadata endpoint to display the NetEase song ID, title, artist, and generated disc command name automatically.
+4. Confirm and submit. No local ZIP is needed. After publication, use the displayed `/getcd <disc command name>` command.
 
-This route is available only when the administrator configured `NETEASE_COOKIE`. A failed job usually means the Cookie expired, the account cannot play that track, or NetEase risk control rejected the Actions runner. It is safe to create a new submission after the previous task is closed.
+The metadata lookup never sends the NetEase Cookie to the page. The Cookie is available only to GitHub Actions when fetching audio. Audio processing requires the administrator to configure `NETEASE_COOKIE`. Failed Issues now report a more specific reason, such as an expired Cookie, missing playback permission, NetEase risk control, or a rejected download URL. It is safe to create a new submission after the previous task is closed.
 If the plugin still reports an old local ticket after the failed Issue closed, run `/music cancel` before retrying.
 
 ## Queue rule

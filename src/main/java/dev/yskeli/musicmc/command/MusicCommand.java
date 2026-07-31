@@ -5,6 +5,7 @@ import dev.yskeli.musicmc.catalog.CatalogSyncService;
 import dev.yskeli.musicmc.config.PluginSettings;
 import dev.yskeli.musicmc.gui.SongBrowserMenu;
 import dev.yskeli.musicmc.library.SongLibrary;
+import dev.yskeli.musicmc.model.NetEaseSongReference;
 import dev.yskeli.musicmc.model.Song;
 import dev.yskeli.musicmc.model.SongNames;
 import dev.yskeli.musicmc.resource.ResourcePackService;
@@ -104,31 +105,31 @@ public final class MusicCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean netease(CommandSender sender, String[] args) {
-        if (args.length < 3 || !args[1].matches("[1-9][0-9]{0,19}")) {
-            sender.sendMessage(ChatColor.YELLOW + "用法: /music netease <网易云歌曲ID> <歌曲命令名称>");
+        String reference;
+        if (args.length == 2) {
+            reference = args[1];
+        } else if (args.length >= 3 && args[1].equalsIgnoreCase("url")) {
+            reference = join(args, 2);
+        } else {
+            sender.sendMessage(ChatColor.YELLOW + "用法: /music netease <网易云歌曲ID>");
+            sender.sendMessage(ChatColor.YELLOW + "或: /music netease url <网易云歌曲链接>");
             return true;
         }
-        return createSubmission(sender, join(args, 2), "netease", args[1], null);
+        try {
+            return createNetEaseSubmission(sender, NetEaseSongReference.parse(reference), null);
+        } catch (IllegalArgumentException exception) {
+            sender.sendMessage(ChatColor.RED + exception.getMessage());
+            return true;
+        }
     }
 
     private boolean createSubmission(
             CommandSender sender, String requestedName, String source, String providerId, Song replacement) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "这个命令只能由玩家执行。");
-            return true;
+        if (source.equals("netease")) {
+            return createNetEaseSubmission(sender, providerId, replacement);
         }
-        if (!player.hasPermission("musicmc.upload")) {
-            player.sendMessage(ChatColor.RED + "你没有投稿歌曲的权限。");
-            return true;
-        }
-        if (adminState.isUploadBanned(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "管理员已禁止你投稿歌曲。");
-            return true;
-        }
-        if (signer.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "服务器尚未配置上传签名密钥，请联系管理员。");
-            return true;
-        }
+        Player player = eligibleUploader(sender);
+        if (player == null) return true;
         final String songName;
         try {
             songName = SongNames.validateDisplayName(requestedName);
@@ -162,14 +163,70 @@ public final class MusicCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean createNetEaseSubmission(CommandSender sender, String providerId, Song replacement) {
+        Player player = eligibleUploader(sender);
+        if (player == null) return true;
+        pendingUploads.pruneExpired();
+        if (replacement == null && library.allSongs().stream().anyMatch(song -> song.source() != null
+                && "netease".equals(song.source().kind()) && providerId.equals(song.source().providerId()))) {
+            player.sendMessage(ChatColor.RED + "这首网易云歌曲已经发布。");
+            return true;
+        }
+        String pendingName = replacement == null ? "netease:" + providerId : replacement.commandName();
+        if (pendingUploads.hasPendingName(pendingName)) {
+            player.sendMessage(ChatColor.RED + "这首网易云歌曲已有待处理投稿。");
+            return true;
+        }
+        if (pendingUploads.hasPendingPlayer(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "你已有一个待处理投稿；完成后可以继续投稿，总次数不限。");
+            return true;
+        }
+        try {
+            UploadTicket ticket = replacement == null
+                    ? signer.orElseThrow().createNetEase(player.getUniqueId(), player.getName(), providerId)
+                    : signer.orElseThrow().createNetEaseReplacement(player.getUniqueId(), player.getName(), providerId,
+                            replacement.commandName(), replacement.songId(), replacement.revision() + 1);
+            pendingUploads.add(new PendingUpload(ticket.nonce(), player.getUniqueId(), pendingName, ticket.expiresAt()));
+            sendSubmissionLink(player, replacement == null ? "" : replacement.commandName(),
+                    "netease", providerId, ticket);
+        } catch (GeneralSecurityException exception) {
+            player.sendMessage(ChatColor.RED + "生成上传凭证失败，请联系管理员查看日志。");
+        }
+        return true;
+    }
+
+    private Player eligibleUploader(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "这个命令只能由玩家执行。");
+            return null;
+        }
+        if (!player.hasPermission("musicmc.upload")) {
+            player.sendMessage(ChatColor.RED + "你没有投稿歌曲的权限。");
+            return null;
+        }
+        if (adminState.isUploadBanned(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "管理员已禁止你投稿歌曲。");
+            return null;
+        }
+        if (signer.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "服务器尚未配置上传签名密钥，请联系管理员。");
+            return null;
+        }
+        return player;
+    }
+
     private void sendSubmissionLink(
             Player player, String songName, String source, String providerId, UploadTicket ticket) {
-        player.sendMessage(ChatColor.GOLD + "已为歌曲“" + songName + "”生成投稿凭证。");
+        if (source.equals("netease") && songName.isBlank()) {
+            player.sendMessage(ChatColor.GOLD + "已为网易云歌曲 ID " + providerId + " 生成投稿凭证。");
+        } else {
+            player.sendMessage(ChatColor.GOLD + "已为歌曲“" + songName + "”生成投稿凭证。");
+        }
         player.sendMessage(ChatColor.GRAY + "凭证有效至 " + ticket.expiresAt() + "，且只能使用一次。");
         String separator = settings.issueUrl().contains("?") ? "&" : "?";
         String url = settings.issueUrl() + separator
                 + "ticket=" + encode(ticket.encodedTicket())
-                + "&song=" + encode(songName)
+                + (songName.isBlank() ? "" : "&song=" + encode(songName))
                 + "&player=" + encode(player.getName())
                 + "&source=" + encode(source)
                 + (providerId.isBlank() ? "" : "&providerId=" + encode(providerId));
@@ -414,7 +471,8 @@ public final class MusicCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GOLD + "MusicMC 命令");
         sender.sendMessage(ChatColor.YELLOW + "/music" + ChatColor.GRAY + " - 打开歌曲菜单");
         sender.sendMessage(ChatColor.YELLOW + "/music upload <名称>" + ChatColor.GRAY + " - 投稿 ZIP 音乐");
-        sender.sendMessage(ChatColor.YELLOW + "/music netease <ID> <名称>" + ChatColor.GRAY + " - 投稿网易云歌曲");
+        sender.sendMessage(ChatColor.YELLOW + "/music netease <ID>" + ChatColor.GRAY + " - 按歌曲 ID 投稿网易云歌曲");
+        sender.sendMessage(ChatColor.YELLOW + "/music netease url <链接>" + ChatColor.GRAY + " - 从网易云链接投稿");
         sender.sendMessage(ChatColor.YELLOW + "/music search <关键词>" + ChatColor.GRAY + " - 搜索歌曲");
         sender.sendMessage(ChatColor.YELLOW + "/music list [页码]" + ChatColor.GRAY + " - 查看歌曲列表");
         sender.sendMessage(ChatColor.YELLOW + "/music status" + ChatColor.GRAY + " - 查看同步与投稿状态");
@@ -449,6 +507,9 @@ public final class MusicCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("list")) {
             return filterPrefix(List.of("1", "2", "3"), args[1]);
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("netease")) {
+            return filterPrefix(List.of("url"), args[1]);
         }
         return List.of();
     }

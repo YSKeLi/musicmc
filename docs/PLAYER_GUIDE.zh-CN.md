@@ -26,11 +26,12 @@ ZIP 压缩包名称现在不需要和歌曲名称相同，MusicMC 会自动生�
 
 ## 提交网易云歌曲
 
-1. 从 `music.163.com/song?id=...` 链接中找到数字歌曲 ID。
-2. 执行 `/music netease <ID> <命令名称>`。
-3. 打开签名链接并提交，不需要从本地上传 ZIP。
+1. 如果已经知道数字歌曲 ID，执行 `/music netease <ID>`，例如 `/music netease 254132`。
+2. 如果手上是完整链接，执行 `/music netease url <网易云歌曲链接>`，例如 `/music netease url https://music.163.com/song?id=254132`。
+3. 打开签名链接。网页会通过签名保护的查询接口自动显示网易云歌曲 ID、歌曲标题、歌手，以及自动生成的唱片命令名称。
+4. 确认信息后提交，不需要从本地上传 ZIP。发布后可使用网页显示的 `/getcd <唱片命令名称>` 获取唱片。
 
-只有管理员配置了 `NETEASE_COOKIE` 时该入口才可用。任务失败通常表示 Cookie 已过期、账号不能播放该歌曲，或网易云风控拒绝了 GitHub Actions 的网络请求。旧任务关闭后可以重新创建投稿。
+歌曲信息查询不会把网易云 Cookie 发送到网页；Cookie 只供 GitHub Actions 获取音频。只有管理员配置了 `NETEASE_COOKIE` 时音频处理才可用。任务失败时 Issue 会显示更具体的原因，例如 Cookie 过期、账号不能播放、网易云风控或下载地址异常。旧任务关闭后可以重新创建投稿。
 如果失败的 Issue 已关闭，但插件仍显示旧本地凭证，先执行 `/music cancel` 再重试。
 
 ## 投稿队列规则

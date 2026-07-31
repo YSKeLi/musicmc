@@ -20,7 +20,8 @@ MusicMC 是一套面向 Spigot 1.21.11 的开源自定义唱片插件和 GitHub 
 ```text
 /music
 /music upload <命令名称>
-/music netease <网易云歌曲ID> <命令名称>
+/music netease <网易云歌曲ID>
+/music netease url <网易云歌曲链接>
 /music search <关键词>
 /music list [页码]
 /music status
@@ -38,7 +39,7 @@ MusicMC 是一套面向 Spigot 1.21.11 的开源自定义唱片插件和 GitHub 
 ./mvnw --batch-mode clean verify
 ```
 
-打包结果为 `target/MusicMC-2.0.0.jar`。
+打包结果为 `target/MusicMC-2.1.0.jar`。
 
 只想为指定的实际服务构建插件，同时不修改被 Git 跟踪的源码文件，可以执行：
 

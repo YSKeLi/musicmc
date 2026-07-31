@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0 - 2026-07-31
+
+- NetEase submissions now require only a song ID and support `/music netease url <URL>`.
+- The signed submission page resolves and displays the NetEase title, artist, ID, and disc command name.
+- Trusted NetEase CDN HTTP URLs are safely upgraded to HTTPS.
+- Workflow labels are bootstrapped automatically and failed Issues retain a more specific NetEase error.
+
 [English](CHANGELOG.md) | [简体中文](CHANGELOG.zh-CN.md)
 
 ## 2.0.0
