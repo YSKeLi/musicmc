@@ -188,7 +188,7 @@ function Copy-DeploymentSources([string]$RuntimeDirectory) {
     Get-ChildItem -LiteralPath (Join-Path $Root 'github-upload-service/scripts') `
         -Filter '*.py' -File | Copy-Item -Destination $scriptsDestination -Force
     Get-ChildItem -LiteralPath (Join-Path $Root 'github-upload-service/tests') -File |
-        Where-Object { $_.Extension -in @('.py', '.mjs') } |
+        Where-Object { $_.Extension -eq '.py' -or $_.Name -eq 'netease-adapter.test.mjs' } |
         Copy-Item -Destination $testsDestination -Force
 
     foreach ($name in @('package.json', 'package-lock.json', 'wrangler.jsonc')) {
