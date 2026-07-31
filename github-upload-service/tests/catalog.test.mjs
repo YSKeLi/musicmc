@@ -72,6 +72,7 @@ test("renders a portal config for separate runtime and Pages repositories", () =
     assert.match(generated, /example\/MusicMC-Uploads\/issues\/new/);
     assert.match(generated, /raw\.githubusercontent\.com\/example\/MusicMC-Uploads/);
     assert.match(generated, /cdn\.jsdelivr\.net\/gh\/example\/MusicMC-Uploads@main/);
+    assert.match(generated, /apis\.netstart\.cn\/music\/song\/detail/);
     assert.doesNotMatch(generated, /OWNER\/REPOSITORY/);
   } finally {
     rmSync(directory, { recursive: true, force: true });

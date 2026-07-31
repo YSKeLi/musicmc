@@ -31,7 +31,7 @@ The ZIP filename no longer has to match the command name. MusicMC assigns a safe
 3. Open the signed link. The page uses a signed metadata endpoint to display the NetEase song ID, title, artist, and generated disc command name automatically.
 4. Confirm and submit. No local ZIP is needed. After publication, use the displayed `/getcd <disc command name>` command.
 
-The metadata lookup never sends the NetEase Cookie to the page. The Cookie is available only to GitHub Actions when fetching audio. Audio processing requires the administrator to configure `NETEASE_COOKIE`. Failed Issues now report a more specific reason, such as an expired Cookie, missing playback permission, NetEase risk control, or a rejected download URL. It is safe to create a new submission after the previous task is closed.
+The metadata lookup never sends the NetEase Cookie to the page. If the current network cannot reach `workers.dev`, the page reads title and artist from the fixed `apis.netstart.cn` HTTPS endpoint, while final submission still requires the automatic Worker. The Cookie is available only to GitHub Actions when fetching audio. Audio processing requires the administrator to configure `NETEASE_COOKIE`. Failed Issues now report a more specific reason, such as an expired Cookie, missing playback permission, NetEase risk control, or a rejected download URL. It is safe to create a new submission after the previous task is closed.
 If the plugin still reports an old local ticket after the failed Issue closed, run `/music cancel` before retrying.
 
 ## Queue rule

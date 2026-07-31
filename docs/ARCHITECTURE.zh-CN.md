@@ -42,6 +42,6 @@ Actions 规范化音频并切成约 5 秒的 OGG 片段，再合入当前滚动�
 - 所有目录地址失败时，插件继续使用最后一份有效缓存。
 - 资源包请求依次尝试配置的代理和直接地址。
 - 自动处理失败不会提交目录，并把 Issue 标记为 `music-failed`。
-- 网易云投稿凭证直接绑定歌曲 ID。网页只通过 Worker 的固定上游、签名保护接口查询标题和歌手；`NETEASE_COOKIE` 仍只存在于 GitHub Actions Secrets 中。
+- 网易云投稿凭证直接绑定歌曲 ID。网页优先通过 Worker 的固定上游、签名保护接口查询标题和歌手；当 `workers.dev` 无法连接时，只读元数据可回退到固定的 `apis.netstart.cn` HTTPS 接口。两条路径都不携带 Cookie，最终发布仍由 Worker 和 Actions 重新校验；`NETEASE_COOKIE` 只存在于 GitHub Actions Secrets 中。
 - 资源包与歌曲版本使用不可变地址；上游短时故障时，已经缓存的内容仍可播放。
 - 替换音频会保留 `song_id` 并递增 `revision`，已有实体唱片会自动解析到新版本。

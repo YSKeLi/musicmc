@@ -6,6 +6,8 @@ import { dirname, resolve } from "node:path";
 const outputArgument = process.argv[2];
 const repository = String(process.env.GITHUB_REPOSITORY || "").trim();
 const uploadApiUrl = String(process.env.MUSICMC_UPLOAD_API_URL || "").trim().replace(/\/$/, "");
+const neteaseMetadataApiUrl = String(process.env.MUSICMC_NETEASE_METADATA_API_URL
+  || "https://apis.netstart.cn/music/song/detail").trim();
 const configuredCatalogUrl = String(process.env.MUSICMC_CATALOG_URL || "").trim();
 const catalogBranch = String(process.env.MUSICMC_CATALOG_BRANCH || "main").trim();
 
@@ -15,6 +17,10 @@ if (!outputArgument || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
 }
 if (uploadApiUrl && new URL(uploadApiUrl).protocol !== "https:") {
   console.error("MUSICMC_UPLOAD_API_URL must use HTTPS.");
+  process.exit(2);
+}
+if (new URL(neteaseMetadataApiUrl).protocol !== "https:") {
+  console.error("MUSICMC_NETEASE_METADATA_API_URL must use HTTPS.");
   process.exit(2);
 }
 if (configuredCatalogUrl && new URL(configuredCatalogUrl).protocol !== "https:") {
@@ -36,6 +42,7 @@ const catalogUrls = configuredCatalogUrl
   : ["./catalog.json"];
 const config = {
   uploadApiUrl,
+  neteaseMetadataApiUrl,
   issueUrl: `https://github.com/${repository}/issues/new`,
   catalogUrls,
 };

@@ -24,6 +24,7 @@ const actionHint = document.querySelector("#action-hint");
 const uploadError = document.querySelector("#upload-error");
 const uploadSuccess = document.querySelector("#upload-success");
 const configuredApi = window.MUSICMC_CONFIG?.uploadApiUrl?.trim() || "";
+const configuredMetadataApi = window.MUSICMC_CONFIG?.neteaseMetadataApiUrl?.trim() || "";
 const configuredIssueUrl = window.MUSICMC_CONFIG?.issueUrl?.trim() || "";
 
 const songNameInput = document.querySelector("#song-name");
@@ -50,7 +51,7 @@ if (errors.length > 0) {
   if (submission.source === "netease") {
     actionHint.textContent = "正在查询网易云歌曲标题和歌手";
     continueButton.disabled = true;
-    resolveNetEaseMetadata(configuredApi, submission).then((metadata) => {
+    resolveNetEaseMetadata(configuredApi, submission, fetch, configuredMetadataApi).then((metadata) => {
       submission.song = String(metadata.command_name || "").trim();
       songNameInput.value = submission.song;
       neteaseTitleInput.value = String(metadata.title || "");

@@ -83,24 +83,64 @@ export async function submitNetEase(apiUrl, submission, fetchImpl = fetch) {
   }, JSON.stringify({ song_id: submission.providerId }), fetchImpl);
 }
 
-export async function resolveNetEaseMetadata(apiUrl, submission, fetchImpl = fetch) {
+export async function resolveNetEaseMetadata(apiUrl, submission, fetchImpl = fetch, fallbackApiUrl = "") {
   if (!submission.ticket.startsWith("MUS1.")
       || submission.source !== "netease"
       || !/^[1-9][0-9]{0,19}$/.test(submission.providerId)) {
     throw new Error("网易云歌曲查询链接无效。");
   }
-  const response = await fetchImpl(new URL("/netease/metadata", apiUrl), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-MusicMC-Ticket": submission.ticket,
-    },
-    body: JSON.stringify({ song_id: submission.providerId }),
-  });
+  let response;
+  try {
+    response = await fetchImpl(new URL("/netease/metadata", apiUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-MusicMC-Ticket": submission.ticket,
+      },
+      body: JSON.stringify({ song_id: submission.providerId }),
+    });
+  } catch (error) {
+    if (fallbackApiUrl) return resolvePublicNetEaseMetadata(fallbackApiUrl, submission.providerId, fetchImpl);
+    throw error;
+  }
   let result = {};
   try { result = await response.json(); } catch { /* HTTP status remains useful. */ }
+  if (!response.ok && response.status >= 500 && fallbackApiUrl) {
+    return resolvePublicNetEaseMetadata(fallbackApiUrl, submission.providerId, fetchImpl);
+  }
   if (!response.ok) throw new Error(result.error || `网易云歌曲查询失败（HTTP ${response.status}）。`);
   return result;
+}
+
+async function resolvePublicNetEaseMetadata(apiUrl, providerId, fetchImpl) {
+  const endpoint = new URL(apiUrl);
+  if (endpoint.protocol !== "https:" || endpoint.hostname !== "apis.netstart.cn") {
+    throw new Error("网易云元数据回退接口配置无效。");
+  }
+  endpoint.searchParams.set("ids", providerId);
+  const response = await fetchImpl(endpoint);
+  if (!response.ok) throw new Error(`网易云歌曲查询失败（HTTP ${response.status}）。`);
+  let body;
+  try { body = await response.json(); } catch { throw new Error("网易云歌曲信息响应格式无效。"); }
+  const song = Array.isArray(body?.songs) ? body.songs[0] : null;
+  if (!song || String(song.id) !== providerId) throw new Error("没有找到这个网易云歌曲 ID。");
+  const title = cleanMetadataText(song.name, 96);
+  const artists = Array.isArray(song.ar) ? song.ar : song.artists;
+  const artist = cleanMetadataText(
+    Array.isArray(artists) ? artists.map((item) => item?.name).filter(Boolean).join(" / ") : "", 96);
+  if (!title) throw new Error("网易云没有返回有效的歌曲标题。");
+  return {
+    song_id: providerId,
+    title,
+    artist,
+    command_name: cleanMetadataText(artist ? `${title}-${artist}` : title, 48) || `netease-${providerId}`,
+  };
+}
+
+function cleanMetadataText(value, maximumLength) {
+  const normalized = String(value || "").normalize("NFKC").replace(/[\p{Cc}\p{Cf}]+/gu, " ")
+    .replace(/\s+/gu, " ").trim();
+  return Array.from(normalized).slice(0, maximumLength).join("");
 }
 
 async function submitApi(endpoint, submission, headers, body, fetchImpl) {

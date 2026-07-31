@@ -98,3 +98,23 @@ test("resolves NetEase metadata through the signed Worker endpoint", async () =>
   assert.equal(request.init.headers["X-MusicMC-Ticket"], netease.ticket);
   assert.equal(result.command_name, "会呼吸的痛-梁静茹");
 });
+
+test("falls back to the fixed public metadata API when workers.dev is unreachable", async () => {
+  const netease = {
+    ticket: "MUS1.payload.signature", song: "", player: "TestPlayer",
+    source: "netease", providerId: "254132",
+  };
+  const calls = [];
+  const result = await resolveNetEaseMetadata(
+    "https://upload.example/", netease, async (url) => {
+      calls.push(String(url));
+      if (String(url).startsWith("https://upload.example/")) throw new TypeError("Failed to fetch");
+      return Response.json({
+        songs: [{ id: 254132, name: "会呼吸的痛", ar: [{ name: "梁静茹" }] }],
+      });
+    }, "https://apis.netstart.cn/music/song/detail",
+  );
+  assert.equal(calls.length, 2);
+  assert.match(calls[1], /^https:\/\/apis\.netstart\.cn\/music\/song\/detail\?ids=254132$/);
+  assert.equal(result.command_name, "会呼吸的痛-梁静茹");
+});
