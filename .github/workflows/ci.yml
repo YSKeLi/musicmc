@@ -43,6 +43,11 @@ jobs:
       - name: Test upload portal
         run: node --test github-upload-service/tests/catalog.test.mjs github-upload-service/tests/portal.test.mjs
 
+      - name: Test NetEase Actions adapter
+        run: |
+          npm ci --ignore-scripts --prefix github-upload-service/actions
+          node --test github-upload-service/tests/netease-adapter.test.mjs
+
       - name: Test processing scripts
         run: python3 -m unittest discover -s github-upload-service/tests -v
 

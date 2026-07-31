@@ -13,3 +13,4 @@
 - Added GitHub Release and S3-compatible publishing backends, multi-key verification, automatic Pages refresh, and bilingual documentation.
 - Added guided automatic/manual deployment that creates separate runtime, Pages, and Worker services without assigning the source repository as a live service.
 - Added server-specific plugin builds, safe v1 catalog migration, existing-site/Worker collision handling, and missing-default config upgrades.
+- Forced the NetEase media lookup through the supported EAPI path and added adapter regression tests.
