@@ -57,7 +57,7 @@ jobs:
           npm ci
           npm test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: MusicMC-plugin
           path: target/MusicMC-*.jar
